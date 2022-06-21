@@ -1,0 +1,109 @@
+global.LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
+global.EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
+global.FixedFee   # integer: the amount of fixed fee # ver 1.1
+global.Team1Total # integer: the total amount wagered on team 1
+global.Team1Total # integer: the total amount wagered on team 2
+global.Team1      # string:  the name of the 1st team in the match(eg "Los Angeles Lakers")
+global.Team2      # string:  the name of the 2nd team in the match(eg "golden State Warriors")
+global.Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
+global.Winner     # string:  the winning team
+
+local.MyTeam		# the team the user has wagered for
+local.MyBet			# the amount wagered by the user
+
+if txn.ApplicationID == 0				
+	assert txn.NumAppArgs == 5 # ver 1.1
+
+	global.Team1      = txn.ApplicationArgs[0]
+	global.Team2      = txn.ApplicationArgs[1]
+	global.LimitDate  = txn.ApplicationArgs[2].btoi
+	global.EndDate    = txn.ApplicationArgs[3].btoi
+	global.FixedFee   = txn.ApplicationArgs[4].btoi # ver 1.1
+	global.Winner     = ""
+	global.Team1Total = 0
+	global.Team2Total = 0
+
+	return 1
+end
+
+if txn.OnCompletion == avm.OptIn
+	assert avm.LatestTimestamp <= global.LimitDate
+	assert avm.GroupSize == 2
+	assert gtxn[0].TypeEnum == avm.AssetTransfer # ver 1.1
+	assert gtxn[0].Receiver == global.Escrow
+	assert gtxn[0].AssetAmount > global.FixedFee # ver 1.1
+	assert txn.NumAppArgs == 1
+	assert txn.NumApplications == 0
+	assert txn.ApplicationArgs[0] == global.Team1 || txn.ApplicationArgs[0] == global.Team2
+
+	local.MyTeam = txn.ApplicationArgs[0]
+	local.MyBet = gtxn[0].AssetAmount # ver 1.1
+
+	if txn.ApplicationArgs[0] == global.Team1
+		global.Team1Total += gtxn[0].AssetAmount # ver 1.1
+	else
+		global.Team2Total += gtxn[0].AssetAmount # ver 1.1
+	end
+
+	return 1
+end
+
+if txn.OnCompletion == avm.NoOp
+	if txn.Sender == avm.CreatorAddress
+		assert txn.NumAppArgs == 2
+
+		if txn.ApplicationArgs[0] == "winner"
+			assert avm.LatestTimestamp > global.LimitDate
+			assert avm.LatestTimestamp <= global.EndDate
+			assert txn.ApplicationArgs[1] == global.Team1 || txn.ApplicationArgs[1] == global.Team2
+
+			global.Winner = txn.ApplicationArgs[1]
+		elseif txn.ApplicationArgs[0] == "escrow"
+		  global.Escrow = tnx.ApplicationArgs[1]
+		else
+			error	# Process exceptions.
+		end
+
+		return 1
+	else
+		if txn.ApplicationArgs[0] == "claim"
+			assert avm.GroupSize == 2
+			assert gtxn[0].TypeEnum == avm.AssetTransfer # ver 1.1
+			assert gtxn[0].Sender == global.Escrow
+			assert gtxn[0].Receiver == gtxn[1].Sender
+			assert global.Winner == local.MyTeam
+
+			MyTeamTotal = (local.MyTeam == global.Team1 ? global.Team1Total : global.Team2Total)
+
+			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal <= (global.Team1Total + global.Team2Total) * local.MyBet # ver 1.1
+			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal + MyTeamTotal > (global.Team1Total + global.Team2Total) * local.MyBet # ver 1.1
+
+			local.MyBet = 0
+
+			return 1
+		elsif txn.ApplicationArgs[0] == "reclaim"
+			assert LatestTimestamp > global.EndDate
+			assert "" == global.Winner
+
+			assert avm.GroupSize == 2
+			assert gtxn[0].TypeEnum == avm.AssetTransfer # ver 1.1
+			assert gtxn[0].Sender == global.Escrow
+			assert gtxn[0].Receiver == gtxn[1].Sender
+			assert gtxn[0].Amount + global.FixedFee == local.MyBet # ver 1.1
+
+			local.MyBet = 0
+
+			return 1
+		else
+			error
+		end
+	end
+end
+
+if txn.OnCompletion == avm.UpdateApplication
+	return txn.Sender == avm.CreatorAddress
+end
+
+if txn.OnCompletion == avm.CloseOut
+	return 1
+end

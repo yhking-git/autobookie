@@ -1,511 +1,407 @@
 const algosdk = require('algosdk');
 const prompt = require("prompt-sync")({ sigint: true });
 const fs = require('fs');
-const dotenv = require('dotenv');
-const { LogicSigAccount } = require('algosdk');
+const {stringToByteArray, numberToByteArray, stringToTimestamp, sleep} = require('./util');
 
+const USDC_ASSET_ID_TESTNET = 10458941;
+const USDC_ASSET_ID_MAINNET = 31566704;
 
-dotenv.config({path: 'env.testnet'});
-const client = new algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_ADDRESS, parseInt(process.env.ALGOD_PORT));
-const indexer = new algosdk.Indexer(process.env.ALGOD_TOKEN, process.env.INDEXER_ADDRESS, parseInt(process.env.INDEXER_PORT));
-
-
-/**
- * 
- * @param {number} numGlobalInts 
- * @param {number} numGlobalByteSlices 
- * @param {number} numLocalInts 
- * @param {number} numLocalByteSlices 
- * @param {string} approvalProgram 
- * @param {string} clearProgram 
- * @param {alogsdk.Account} account 
- * @param {[]} appArgs 
- * @returns 
- */
-async function txnCreateApplication(numGlobalInts, numGlobalByteSlices, numLocalInts, numLocalByteSlices, approvalProgram, clearProgram, account, appArgs=null) {
-  const params = await getMinParams();
-  const txn = algosdk.makeApplicationCreateTxn(
-    account.addr,
-    params,
-    algosdk.OnApplicationComplete.NoOpOC,
-    await compileTealFile(approvalProgram),
-    await compileTealFile(clearProgram),
-    numLocalInts,
-    numLocalByteSlices,
-    numGlobalInts,
-    numGlobalByteSlices,
-    appArgs
-  );
-  const signedTxn = txn.signTxn(account.sk);
-  const txId = txn.txID();
-  await client.sendRawTransaction(signedTxn).do();
-  const confirmedTxn = await algosdk.waitForConfirmation(client, txId, 20);
-  const transactionResponse = await client.pendingTransactionInformation(txId).do();
-  let appId = transactionResponse['application-index'];
-  console.log("Created new app-id: ",appId);
-
-  return transactionResponse;
-}
-
-
-/**
- * 
- * @param {number} appId 
- * @param {algosdk.Account} account
- * @param {Uint8Array[]} args
- */
-async function txnCallApplication(appId, account, args=null) {
-  const params = await getMinParams();
-  const txn = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, args);
-  const signedTxn = txn.signTxn(account.sk);
-  let txId = txn.txID();
-  await client.sendRawTransaction(signedTxn).do();
-  await algosdk.waitForConfirmation(client, txId, 20)
-  const response = await client.pendingTransactionInformation(txId).do();
-  console.log("Called app-id: ",response['txn']['txn']['apid'])
-  return response
-}
-
-
-/**
- * 
- * @param {alogsdk.Account} account 
- * @param {number} appId 
- */
-async function txnDeleteApplication(account, appId) {
-  const params = await getMinParams();
-  const txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
-  const signedTxn = txn.signTxn(account.sk);
-  const txId = txn.txID();
-  await client.sendRawTransaction(signedTxn).do();
-  await algosdk.waitForConfirmation(client, txId, 20);
-  const transactionResponse = await client.pendingTransactionInformation(txId).do();
-  const deletedAppId = transactionResponse['txn']['txn'].apid;
-  console.log("Deleted appId: ", deletedAppId);
-  return txn;
-}
-
-
-/**
- * 
- * @param {algosdk.Account} account 
- * @param {string} receiver 
- * @param {number} amount 
- * @returns 
- */
-async function txnPayment(account, receiver, amount) {
-  const params = await getMinParams();
-  let txn = algosdk.makePaymentTxnWithSuggestedParams(account.addr, receiver, amount, undefined, new Uint8Array(0), params);
-  const signedTxn = txn.signTxn(account.sk);
-  let txId = txn.txID();
-  await client.sendRawTransaction(signedTxn).do();
-  await algosdk.waitForConfirmation(client, txId, 20);
-  return txId;
-}
-
-
-/**
- * 
- * @param {algosdk.Account} account 
- * @param {string} team1 
- * @param {string} team2 
- * @param {number} limitDate 
- * @param {number} endDate 
- */
-async function dappCreateByAccount(account, team1, team2, limitDate, endDate){
-  console.log(`Creating DApp... ${limitDate} ~ ${endDate}`);
-  const appId = await dappDeploy(account, team1, team2, limitDate, endDate);
-  // const appId = 89424287;
-  const escrow = await setEscrow(account, appId);
-  console.log('Funding escrow account')
-
-  const txId = await txnPayment(account, escrow, 100000);
-  console.log('All done!');
-
-  return {appId, escrow, txId};
-}
-
-
-/**
- * 
- * @param {string} mnemonic 
- * @param {string} team1 
- * @param {string} team2 
- * @param {number} limitDate 
- * @param {number} endDate 
- */
-function dappCreate(mnemonic, team1, team2, limitDate, endDate){
-  return dappCreateByAccount(createOrGetAccount(mnemonic), team1, team2, limitDate, endDate);
-}
-
-
-/**
- * 
- * @param {string} mnemoic 
- * @returns 
- */
-function createOrGetAccount(mnemoic=null) {
-  try {
-    let account_mnemoic;
-    let account
-
-    if (mnemoic === null || mnemoic === undefined) {
-      account = algosdk.generateAccount();
-      account_mnemoic = algosdk.secretKeyToMnemonic(account.sk);
-      // let temp_accouont = algosdk.mnemonicToSecretKey(account_mnemoic);
-      // console.log("        Address = " + temp_accouont.addr);
-      // console.log("        sk = " + temp_accouont.sk);
-    } else {
-      account = algosdk.mnemonicToSecretKey(mnemoic);
-      account_mnemoic = mnemoic;
-    }
-
-    console.log("Account Address = " + account.addr);
-    console.log("Account sk = " + account.sk);
-    console.log("Account Mnemonic = " + account_mnemoic);
-    console.log("Account create. Save off Mnemonic and address");
-    console.log("Add funds to account using the TestNet dispenser: ");
-    console.log("https://dispenser.testnet.aws.algodev.network/ ");
-    return account;
-  }
-  catch (err) {
-    console.log("err", err);
+class AutobookieDapp {
+  /**
+   * @param {number} appId 
+   * @param {string} creator 
+   * @param {{addr: string, sk: Uint8Array, mnemonic: string}} escrow 
+   * @param {string} team1 
+   * @param {string} team2 
+   * @param {number} limitDate 
+   * @param {number} endDate 
+   */
+  constructor(appId, creator, escrow, team1, team2, limitDate, endDate) {
+    /** @type {number} */
+    this.appId = appId;
+    /** @type {string} */
+    this.creator = creator;
+    /** @type {{addr: string, sk: Uint8Array, mnemonic: string}} */
+    this.escrow = escrow;
+    /** @type {string} */
+    this.team1 = team1;
+    /** @type {string} */
+    this.team2 = team2;
+    /** @type {number} */
+    this.limitDate = limitDate;
+    /** @type {number} */
+    this.endDate = endDate;
+    /** @type {string} */
+    this.winner = '';
   }
 }
 
-
 /**
- * 
- * @param {string} mnemonic 
- * @param {number} appId 
- * @param {boolean} closeOut
+ * Interface of Algorand
  */
-async function dappDelete(mnemonic, appId, closeOut=true) {
-  console.log('WARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
+class AutobookieCore {
+  /**
+   * @param {string} algoToken 
+   * @param {string} algodAddr 
+   * @param {number} algodPort 
+   * @param {number} usdcAssetId 
+   * @param {number} fixedFee 
+   */
+  constructor(algoToken, algodAddr, algodPort, usdcAssetId, fixedFee) {
+    /** @type {algosdk.Algodv2} */
+    this.client = new algosdk.Algodv2(algoToken, algodAddr, algodPort);
+    /** @type {number} */
+    this.usdcAssetId = usdcAssetId;
+    this.fixedFee = fixedFee;
+  }
 
-  if (process.stdin.isTTY) {
-    const i = prompt('Are you sure you wish to continue? [y/N]');
-    if (i.toLowerCase() != 'y') {
-      console.log('Aborted');
+  /**
+   * @param {string} mnemonic 
+   */
+  async makeAccoutCanUseUsdc(mnemonic) {
+    let account = algosdk.mnemonicToSecretKey(mnemonic);
+    let txn = await this.#makeUsdcTransferTxn(account.addr, account.addr, 0);
+    await this.#sendSingleTxn(account.sk, txn);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+  }
+
+  /**
+   * @param {string} creatorMnemonic 
+   * @param {string} escrowMnemonic 
+   * @param {string} team1 
+   * @param {string} team2 
+   * @param {number} limitDate 
+   * @param {number} endDate 
+   */
+  async createDapp(creatorMnemonic, escrowMnemonic, team1, team2, limitDate, endDate) {
+    console.log(`Creating DApp... ${limitDate} ~ ${endDate}`);
+    const creatorAccount = algosdk.mnemonicToSecretKey(creatorMnemonic);
+    // create dapp
+    const args = [stringToByteArray(team1),
+                  stringToByteArray(team2),
+                  numberToByteArray(limitDate),
+                  numberToByteArray(endDate),
+                  numberToByteArray(this.fixedFee)          // fee 20 USDC
+    ];
+    const response = await this.#createApp(5, 4, 1, 1, './teal/approval.teal', './teal/clear.teal', creatorAccount, args);
+    console.log('Successfully deployed application: ');
+    const appId = response['application-index'];
+
+    // create escrow
+    const escrowAccount = algosdk.mnemonicToSecretKey(escrowMnemonic);
+    const escrow = {
+      addr: escrowAccount.addr,
+      sk: escrowAccount.sk,
+      mnemonic: algosdk.secretKeyToMnemonic(escrowAccount.sk)
+    };
+    console.log('escrow = ', escrow);
+
+    // console.log('Funding escrow account');
+    // await this.getAccountAssetInfo(escrowAccount.addr, this.usdcAssetId);
+    // let txn = algosdk.makePaymentTxnWithSuggestedParams(creatorAccount.addr, escrowAccount.addr, 1000000, undefined, undefined, await this.#getMinParams());
+    // await this.#sendSingleTxn(creatorAccount.sk, txn);
+    // await this.getAccountAssetInfo(escrowAccount.addr, 0);
+    // console.log('Funding escrow account done');
+
+    await this.makeAccoutCanUseUsdc(escrow.mnemonic);
+    let dapp = new AutobookieDapp(appId, creatorAccount.addr, escrow, team1, team2, limitDate, endDate);
+    await this.setEscrow(creatorMnemonic, dapp);
+    console.log('DApp created: ', dapp);
+    return dapp;
+  }
+
+  /**
+   * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp
+   * @param {number} amount
+   * @param {string} myTeam
+   */
+  async bet(mnemonic, dapp, amount, myTeam) {
+    console.log("Betting starting...");
+    if (myTeam !== dapp.team1 && myTeam !== dapp.team2) {
+      console.log(`Invalid team: ${myTeam}`);
       return;
     }
+
+    if (amount <= this.fixedFee) {
+      console.log(`Invalid amount: ${amount}`);
+      return;
+    }
+
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
+    const params = await this.#getMinParams();
+    const txn0 = await this.#makeUsdcTransferTxn(account.addr, dapp.escrow.addr, amount);
+    const txn1 = algosdk.makeApplicationOptInTxn(account.addr, params, dapp.appId, [stringToByteArray(myTeam)]);
+    await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
+    console.log("Betting complete!");
   }
 
-  const account = createOrGetAccount(mnemonic);
+  /**
+   * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp 
+   * @returns {string}
+   */
+  async setEscrow(mnemonic, dapp) {
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    console.log(`Updating application ${dapp.appId} with escrow address`);
+    await this.#callApp(account, dapp.appId, [stringToByteArray('escrow'), algosdk.decodeAddress(dapp.escrow.addr).publicKey]);
+    console.log('Successfully updated escrow address:');
+  }
 
-  if (closeOut) {
-    let lsig = await getLogicSigAccount(appId);
-    const params = await getMinParams();
-    let txn0 = algosdk.makePaymentTxnWithSuggestedParams(lsig.address(), account.addr, 0, account.addr, new Uint8Array(0), params);
-    let txn1 = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
+  /**
+   * @param {string} mnemonic 
+   * @param {AutobookieDapp} dapp 
+   * @param {string} winner 
+   */
+  async setWinner(mnemonic, dapp, winner) {
+    console.log(`Updating application ${dapp.appId} with winner ${winner}`);
+    const now =  Math.round(Date.now()/1000);
+    const seconds = dapp.limitDate - now;
+    if (seconds > 0) {
+      await sleep(seconds + 10);
+    }
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const response = await this.#callApp(account, dapp.appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
+    console.log("Successfully update application:");
+    console.log(response, '\n\n');
+  }
+
+  /**
+   * Claim winnings for a given user.
+   * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp
+   * @param {number} myBet
+   * @param {number} myTeamTotal
+   * @param {number} otherTeamTotal
+   */
+  async claim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
+    console.log("Claiming " + amount + " with account " + account.addr);
+    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    const params = await this.#getMinParams();
+    let txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
+    let txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
+    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
+    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    console.log("Claim complete!");
+  }
+
+  /**
+   * @param {string} mnemonic 
+   * @param {AutobookieDapp} dapp 
+   * @param {boolean} closeOut
+   */
+  async deleteDappByObject(mnemonic, dapp) {
+    console.log('WARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    // usdc
+    let info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    if (info.asset != undefined && info.asset.amount != undefined && info.asset.amount > 0) {
+      let usdcTxn = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, info.asset.amount);
+      await this.#sendSingleTxn(dapp.escrow.sk, usdcTxn);
+      info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    }
+    // algo
+    const params = await this.#getMinParams();
+    let txn0 = algosdk.makePaymentTxnWithSuggestedParams(dapp.escrow.addr, account.addr, 0, undefined, undefined, params);
+    let txn1 = algosdk.makeApplicationDeleteTxn(account.addr, params, dapp.appId);
+    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
+    console.log("Deleted appId: ", dapp.appId);
+    console.log('All done!');
+  }
+
+  /**
+   * @param {string} mnemonic 
+   * @param {number} appId 
+   * @param {boolean} closeOut
+   */
+  async deleteDappById(mnemonic, appId) {
+    console.log('WARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const params = await this.#getMinParams();
+    let txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
+    const signedTxn = txn.signTxn(account.sk);
+    const {txId} = await this.client.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.client, txId, 20);
+    console.log("Deleted appId: ", appId);
+    console.log('All done!');
+  }
+
+  /**
+   * Function used to print asset info for account and assetid
+   * @param {string} addr 
+   * @param {number} assetId 
+   */
+  async getAccountAssetInfo(addr, assetId) {
+    let accountInfo = await this.client.accountInformation(addr).do();
+    let assetInfo = {};
+    assetInfo['address'] = addr;
+    assetInfo['algo'] = accountInfo['amount'];
+    for (let idx = 0; idx < accountInfo['assets'].length; idx++) {
+        let scrutinizedAsset = accountInfo['assets'][idx];
+        if (scrutinizedAsset['asset-id'] == assetId) {
+            let myassetinfo = JSON.stringify(scrutinizedAsset, undefined, 2);
+            assetInfo.asset =scrutinizedAsset;
+            break;
+        }
+    }
+
+    console.log("info = " + JSON.stringify(assetInfo, undefined, 2));
+    return assetInfo
+  }
+
+  ////////// private methods //////////
+
+  /**
+   * @param {string} tealString 
+   */
+  async #compileTealString(tealString) {
+    const src = tealString || '#pragma version 2\nint 1';
+    const compiled = await this.client.compile(src).do();
+    return new Uint8Array(Buffer.from(compiled.result, 'base64'));
+  }
+
+  /**
+   * @param {string} fileName 
+   */
+  async #compileTealFile(fileName) {
+    const src = fs.readFileSync(fileName, 'utf8') || '#pragma version 2\nint 1';
+    return this.#compileTealString(src);
+  }
+
+  /**
+   * @param {string} from 
+   * @param {string} to 
+   * @param {number} amount 
+   * @param {boolean} closeAtFrom
+   * @returns 
+   */
+  async #makeUsdcTransferTxn(from, to, amount, closeAtFrom=false) {
+    return algosdk.makeAssetTransferTxnWithSuggestedParams(
+      from,
+      to,
+      closeAtFrom ? from : undefined,
+      undefined,
+      amount,
+      undefined,
+      this.usdcAssetId,
+      await this.#getMinParams())
+  }
+
+  /**
+   * @param {algosdk.Account} account
+   * @param {number} appId 
+   * @param {Uint8Array[]} args
+   */
+  async #callApp(account, appId, args=null) {
+    const params = await this.#getMinParams();
+    const txn = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, args);
+    const signedTxn = txn.signTxn(account.sk);
+    let txId = txn.txID();
+    await this.client.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.client, txId, 20)
+    const response = await this.client.pendingTransactionInformation(txId).do();
+
+    return response
+  }
+
+  /**
+   * @param {number} numGlobalInts 
+   * @param {number} numGlobalByteSlices 
+   * @param {number} numLocalInts 
+   * @param {number} numLocalByteSlices 
+   * @param {string} approvalProgram 
+   * @param {string} clearProgram 
+   * @param {alogsdk.Account} account 
+   * @param {[]} appArgs 
+   * @returns 
+   */
+  async #createApp(numGlobalInts, numGlobalByteSlices, numLocalInts, numLocalByteSlices, approvalProgram, clearProgram, account, appArgs=null) {
+    const params = await this.#getMinParams();
+    const txn = algosdk.makeApplicationCreateTxn(
+      account.addr,
+      params,
+      algosdk.OnApplicationComplete.NoOpOC,
+      await this.#compileTealFile(approvalProgram),
+      await this.#compileTealFile(clearProgram),
+      numLocalInts,
+      numLocalByteSlices,
+      numGlobalInts,
+      numGlobalByteSlices,
+      appArgs
+    );
+    const signedTxn = txn.signTxn(account.sk);
+    const txId = txn.txID();
+    await this.client.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.client, txId, 20);
+    const transactionResponse = await this.client.pendingTransactionInformation(txId).do();
+    let appId = transactionResponse['application-index'];
+    console.log("Created new app-id: ",appId);
+
+    return transactionResponse;
+  }
+
+  /**
+   * @param {Uint8Array} sk 
+   * @param {algosdk.Transaction} txn 
+   */
+  async #sendSingleTxn(sk, txn) {
+    const signedTxn = txn.signTxn(sk);
+    const txId = txn.txID();
+    await this.client.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.client, txId, 20);
+    return await this.client.pendingTransactionInformation(txId).do();
+  }
+
+  /**
+   * @param {Uint8Array} sk0
+   * @param {algosdk.Transaction} txn0
+   * @param {Uint8Array} sk1
+   * @param {algosdk.Transaction} txn1
+   */
+  async #sendDoubleTxns(sk0, txn0, sk1, txn1) {
     const gid = algosdk.computeGroupID([txn0, txn1]);
     txn0.group = gid;
     txn1.group = gid;
-    const signedTxn0 = algosdk.signLogicSigTransaction(txn0, lsig);
-    const signedTxn1 = txn1.signTxn(account.sk);
-    const {txId} = await client.sendRawTransaction([signedTxn0.blob, signedTxn1]).do();
-    await algosdk.waitForConfirmation(client, txId, 20);
-    console.log("Deleted appId: ", appId);
-} else {
-    await txnDeleteApplication(account, appId);
+    const signedTxn0 = txn0.signTxn(sk0);
+    const signedTxn1 = txn1.signTxn(sk1);
+    const {txId} = await this.client.sendRawTransaction([signedTxn0, signedTxn1]).do();
+    await algosdk.waitForConfirmation(this.client, txId, 20);
+    await this.client.pendingTransactionInformation(txId).do();
   }
 
-  console.log('All done!');
-}
-
-
-/**
- * 
- * @param {string} tealString 
- */
-async function compileTealString(tealString) {
-  const src = tealString || '#pragma version 2\nint 1';
-  const compiled = await client.compile(src).do();
-  return new Uint8Array(Buffer.from(compiled.result, 'base64'));
-}
-
-
-/**
- * 
- * @param {string} fileName 
- */
-async function compileTealFile(fileName) {
-  const src = fs.readFileSync(fileName, 'utf8') || '#pragma version 2\nint 1';
-  return compileTealString(src);
-}
-
-
-/**
- * 
- * @param {string} date 
- * @returns 
- */
-function dateToTimestamp(date) {
-  return Math.round(new Date(date).getTime()/1000);
-}
-
-
-/**
- * 
- * @param {number} n 
- */
-function makeArgFromNumber(n) {
-  const bytes = new Uint8Array(4);
-  bytes[0] = (n >> 24) & 0xff;
-  bytes[1] = (n >> 16) & 0xff;
-  bytes[2] = (n >> 8) & 0xff;
-  bytes[3] = n & 0xff;
-  return bytes;
-}
-
-
-/**
- * 
- * @param {string} s 
- */
-function makeArgFromString(s) {
-  return new TextEncoder().encode(s)
-}
-
-/**
- * 
- * @param {algosdk.Account} account 
- * @param {string} team1 
- * @param {string} team2 
- * @param {string} limitDate 
- * @param {string} endDate 
- */
-async function dappDeploy(account, team1, team2, limitDate, endDate) {
-  const args = [makeArgFromString(team1), makeArgFromString(team2), makeArgFromNumber(limitDate), makeArgFromNumber(endDate)];
-  console.log('Deploying application with args: ', args);
-
-  const response = await txnCreateApplication(4, 4, 1, 1, './teal/approval.teal', './teal/clear.teal', account, args);
-  console.log('Successfully deployed application: ');
-  console.log(response, '\n\n');
-
-  return response['application-index'];
-}
-
-
-/**
- * 
- * @param {number} appId 
- * @returns 
- */
-function generateEscrow(appId) {
-  let src = fs.readFileSync('./teal/escrow.teal', 'UTF-8');
-  return src.replace('TMPL_APP_ID', appId.toString());
-}
-
-
-/**
- * Query the blockchain for suggested params, and set flat fee to True and the fee to the minimum.
- * @returns The paramaters.
- */
-async function getMinParams() {
-  let suggestedParams = await client.getTransactionParams().do();
-  suggestedParams.flatFee  = true;
-  suggestedParams.fee = algosdk.ALGORAND_MIN_TX_FEE;
-
-  return suggestedParams
-}
-
-
-/**
- * 
- * @param {algosdk.Account} account 
- * @param {number} appId 
- */
-async function setEscrow(account, appId) {
-  console.log(`Updating application ${appId} with escrow address`);
-
-  const src = generateEscrow(appId);
-  const compiled = await client.compile(src).do();
-  const escrowHash = compiled['hash'];
-  console.log(`Escrow address is ${escrowHash}`);
-
-  const escrowAddress = algosdk.decodeAddress(escrowHash);
-  const response = await txnCallApplication(appId, account, [makeArgFromString('escrow'), escrowAddress.publicKey]);
-
-  console.log('Successfully updated application:');
-  console.log(response, '\n\n');
-  return escrowHash;
-}
-
-
-/**
- * 
- * @param {string} mnemonic 
- * @param {number} appId 
- * @param {string} team 
- */
-async function setWinner(mnemonic, appId, team) {
-  console.log(`Updating application ${appId} with winner ${team}`);
-
-  const account = algosdk.mnemonicToSecretKey(mnemonic);
-  const response = await txnCallApplication(appId, account, [makeArgFromString('winner'), makeArgFromString(team)]);
-  console.log("Successfully update application:");
-  // console.log(response, '\n\n');
-}
-
-
-/**
- * 
- * @param {string} mnemonic 
- * @param {number} appId 
- * @param {string} approvalProgramFileName 
- * @param {string} clearProgramFileName 
- * @param {object} args 
- */
-async function dappUpdate(mnemonic, appId, approvalProgramFileName, clearProgramFileName, args=null) {
-  console.log(`Updating application ${appId} with approval and clear programs`);
-  const account = algosdk.mnemonicToSecretKey(mnemonic);
-  const compiledApprovalProgram = await compileTealFile(approvalProgramFileName);
-  const compiledClearProgram = await compileTealFile(clearProgramFileName);
-  const params = await getMinParams();
-  const txn = algosdk.makeApplicationUpdateTxn(account.addr, params, appId, compiledApprovalProgram, compiledClearProgram, args);
-  const signedTxn = txn.signTxn(account.sk);
-  let txId = txn.txID();
-
-  await client.sendRawTransaction(signedTxn).do();
-  console.log("Waiting for confirmation...");
-
-  await algosdk.waitForConfirmation(client, txId, 20);
-
-  const transactionResponse = await client.pendingTransactionInformation(txId).do();
-  console.log("Successfully updated application:");
-
-  return transactionResponse;
-}
-
-
-/**
- * 
- * @param {string} mnemonic
- * @param {number} appId
- * @param {string} escrow
- * @param {number} amount
- * @param {string} team
- */
-async function bet(mnemonic, appId, escrow, amount, team) {
-  console.log("Betting starting...");
-  const account = algosdk.mnemonicToSecretKey(mnemonic);
-  console.log(`    ${account.addr} is betting on ${team} ${amount} micro algos`);
-
-  const params = await getMinParams();
-
-  // Construct the transaction
-  const txn0 = algosdk.makePaymentTxnWithSuggestedParams(account.addr, escrow, amount, undefined, new Uint8Array(0), params);
-  const txn1 = algosdk.makeApplicationOptInTxn(account.addr, params, appId, [makeArgFromString(team)]);
-
-  // Sign and send
-  await combineAndSend(account, txn0, txn1);
-  console.log("Betting complete!");
-}
-
-
-/**
- * Helper function to combine two transactions, sign them with AlgoSigner, and send them to the blockchain
- * @param {algosdk.Account} account The first transaction
- * @param {Transaction} txn0 The first transaction
- * @param {Transaction} txn1 The second transaction
- */
-async function combineAndSend(account, txn0, txn1) {
-  const gid = algosdk.computeGroupID([txn0, txn1]);
-  txn0.group = gid;
-  txn1.group = gid;
-  const signedTxn0 = txn0.signTxn(account.sk);
-  const signedTxn1 = txn1.signTxn(account.sk);
-  const {txId} = await client.sendRawTransaction([signedTxn0, signedTxn1]).do();
-  const confirmedTxn = await algosdk.waitForConfirmation(client, txId, 20);
-  console.log(`combineAndSend: done`);
-}
-
-
-/**
- * Helper function used to calculate how much a user is entitled to if they win for the given parameters.
- * @param {number} myBet 
- * @param {number} myTeamTotal 
- * @param {number} otherTeamTotal 
- * @param {number} fee 
- * @returns {number} The amount a user may claim.
- */
-function calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, fee = 1000) {
-  return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - fee)
-}
-
-
-/**
- * 
- * @param {number} myBet 
- * @param {number} fee 
- * @returns {number} The amount a user may reclaim.
- */
-function calculateReclaimAmount(myBet, fee = 1000) {
-  return myBet - fee
-}
-
-
-/**
- * 
- * @param {number} appId 
- */
-async function getLogicSigAccount(appId) {
-  const src = generateEscrow(appId);
-  const program = await compileTealString(src);
-  let lsig = new LogicSigAccount(program);
-
-  return lsig;
-}
-
-
-/**
- * Claim winnings for a given user.
- * @param {string} mnemonic
- * @param {number} appId
- * @param {number} myBet
- * @param {number} myTeamTotal
- * @param {number} otherTeamTotal
- */
-async function claim(mnemonic, appId, myBet, myTeamTotal, otherTeamTotal, fee = algosdk.ALGORAND_MIN_TX_FEE) {
-  const amount = calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
-  const account = algosdk.mnemonicToSecretKey(mnemonic);
-  console.log("Claiming " + amount + " with account " + account.addr);
-  const i = prompt('Are you sure you wish to continue? [y/N]');
-  if (i.toLowerCase() != 'y') {
-    console.log('Aborted');
-    return;
+  /**
+   * Helper function used to calculate how much a user is entitled to if they win for the given parameters.
+   * @param {number} myBet 
+   * @param {number} myTeamTotal 
+   * @param {number} otherTeamTotal 
+   * @param {number} fee 
+   * @returns {number} The amount a user may claim.
+   */
+  #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal) {
+    return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - this.fixedFee)
   }
-  let lsig = await getLogicSigAccount(appId);
-  const params = await getMinParams();
-  let txn0 = algosdk.makePaymentTxnWithSuggestedParams(lsig.address(), account.addr, amount, undefined, new Uint8Array(0), params);
-  let txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [makeArgFromString('claim')]);
-  const gid = algosdk.computeGroupID([txn0, txn1]);
-  txn0.group = gid;
-  txn1.group = gid;
-  const signedTxn0 = algosdk.signLogicSigTransaction(txn0, lsig);
-  const signedTxn1 = txn1.signTxn(account.sk);
-  const {txId} = await client.sendRawTransaction([signedTxn0.blob, signedTxn1]).do();
-  console.log(`Waiting for confirmation... txId: ${txId}`);
 
-  await algosdk.waitForConfirmation(client, txId, 20);
-  console.log("Claim complete!");
+  /**
+   * Query the blockchain for suggested params, and set flat fee to True and the fee to the minimum.
+   */
+  async #getMinParams() {
+    let suggestedParams = await this.client.getTransactionParams().do();
+    suggestedParams.flatFee  = true;
+    suggestedParams.fee = algosdk.ALGORAND_MIN_TX_FEE;
+
+    return suggestedParams
+  }
+
 }
-
 
 module.exports = {
-  // Dapp functions
-  dappCreate,
-  dappDelete,
-  dappUpdate,
-  dateToTimestamp,
-
-  // Game functions
-  bet,
-  setWinner,
-  claim,
-
-  calculateClaimAmount,
-  calculateReclaimAmount,
-
+  AutobookieCore,
+  AutobookieDapp,
+  USDC_ASSET_ID_TESTNET,
+  USDC_ASSET_ID_MAINNET,
 }

@@ -1,12 +1,28 @@
 #pragma version 3
 
+// ver 1.1
+// GLOBAL STATE
+// LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
+// EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
+// FixedFee   # integer: the amount of fixed fee // ver 1.1
+// Team1Total # integer: the total amount wagered on team 1
+// Team1Total # integer: the total amount wagered on team 2
+// Team1      # string:  the name of the 1st team in the match(eg "Los Angeles Lakers")
+// Team2      # string:  the name of the 2nd team in the match(eg "golden State Warriors")
+// Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
+// Winner     # string:  the winning team
+
+
 txn ApplicationID
 int 0
 ==
 bz not_creation
 
+// CREATION //
+// Set Team1Name, Team2Name, LimitDate and EndDate on app creation 
+
 txn NumAppArgs
-int 4
+int 5 // ver 1.1
 ==
 assert
 
@@ -28,6 +44,11 @@ txna ApplicationArgs 3
 btoi
 app_global_put
 
+byte "FixedFee" // ver 1.1
+txna ApplicationArgs 4
+btoi
+app_global_put
+
 byte "Winner"
 byte ""
 app_global_put
@@ -43,6 +64,8 @@ app_global_put
 b done
 
 not_creation:
+
+// Check OnCompletion values
 
 txn OnCompletion
 int UpdateApplication
@@ -70,10 +93,12 @@ int DeleteApplication
 ==
 bnz handle_deleteapp
 
+// Unexpected OnCompletion value. Should be unreachable
 err
 
 handle_update:
 
+// Allow creator to update
 txn Sender
 global CreatorAddress
 ==
@@ -81,6 +106,9 @@ return
 
 handle_optin:
 
+// OPT IN //
+
+// Cannot opt in after limit date
 global LatestTimestamp
 byte "LimitDate"
 app_global_get
@@ -93,20 +121,24 @@ int 2
 assert
 
 gtxn 0 TypeEnum
-int 1
+int axfer // ver 1.1
 ==
 assert
 
-gtxn 0 Receiver
+gtxn 0 AssetReceiver // ver 1.1
 byte "Escrow"
 app_global_get
 ==
 assert
 
-gtxn 0 Amount
-int 10000
->=
+gtxn 0 AssetAmount // ver 1.1
+// int 10000
+// >=
+byte "FixedFee"
+app_global_get
+>
 assert
+
 
 txn NumApplications
 int 0
@@ -118,6 +150,7 @@ int 1
 ==
 assert
 
+// The only argument must be one of the two team names
 txna ApplicationArgs 0
 byte "Team1"
 app_global_get
@@ -126,12 +159,15 @@ txna ApplicationArgs 0
 byte "Team2"
 app_global_get
 ==
-
+// Assuming the assert passed, this value will be 0 if user voted for team 1 and 1 if user voted for team 2
+// We'll store it for later to figure out which team's total to increment
 dup
 store 0 
 ||
 assert
 
+
+// Set local state
 int 0
 byte "MyTeam"
 txna ApplicationArgs 0
@@ -139,30 +175,41 @@ app_local_put
 
 int 0 
 byte "MyBet"
-gtxn 0 Amount
+gtxn 0 AssetAmount // ver 1.1
 app_local_put
 
+
+// Update global state
 load 0
 bnz Team2Bet
 
+// User voted for team1
 byte "Team1Total"
 b skip0
 
 Team2Bet:
-
+// User voted for team2
 byte "Team2Total"
 skip0:
 
 dup
 app_global_get
-gtxn 0 Amount
+gtxn 0 AssetAmount // ver 1.1
 +
 app_global_put
 
 b done
 
 handle_noop:
+// Creator args:
+// escrow addr      - set escrow address
+// winner teamname  - set winner
 
+// User args:
+// claim            - claim winnings
+// reclaim          - reclaim wager
+
+// CREATOR
 txn Sender
 global CreatorAddress
 ==
@@ -173,6 +220,7 @@ int 2
 ==
 assert
 
+// Parse creator args
 txna ApplicationArgs 0
 byte "escrow"
 ==
@@ -185,6 +233,7 @@ err
 
 escrow:
 
+// Set escrow account
 byte "Escrow"
 txna ApplicationArgs 1
 app_global_put
@@ -192,12 +241,20 @@ b done
 
 winner:
 
+// Winner should be set between limit date and end date
+global LatestTimestamp
+byte "LimitDate"
+app_global_get
+>
+assert
+
 global LatestTimestamp
 byte "EndDate"
 app_global_get
 <=
 assert
 
+// check that winner is one of "Team1" or "Team2"
 txna ApplicationArgs 1
 byte "Team1"
 app_global_get
@@ -215,8 +272,11 @@ app_global_put
 
 b done
 
+
+// CLIENT
 client_noop:
 
+// Parse client args
 txna ApplicationArgs 0
 byte "claim" 
 ==
@@ -229,37 +289,59 @@ err
 
 claim:
 
+// User has won and wants to claim winnings
 global GroupSize
 int 2
 ==
 assert
 
 gtxn 0 TypeEnum
-int 1
+int axfer // ver 1.1
 ==
 assert
 
-gtxn 0 Sender
+gtxn 0 Sender // ver 1.1
 byte "Escrow"
 app_global_get
 ==
 assert
 
-gtxn 0 Receiver
+// Assert the reciever is also the one calling app...
+gtxn 0 AssetReceiver // ver 1.1
 gtxn 1 Sender
 ==
 assert
 
+// ... and that they voted for the right team
 int 0
 byte "MyTeam"
 app_local_get
-
-dup
+dup // we'll use this later
 byte "Winner"
 app_global_get
 ==
 assert
 
+// The calculation for the total amount claimed is calculated as following:
+// amount + fee == MyBet / MyTeamTotal * (Team1Total + Team2Total)
+//
+// Which equates to:
+// (amount + fee) * MyTeamTotal == (Team1Total + Team2Total) * MyBet
+//
+// Because this can result in non-integer amounts, we want users to request
+// the maximum amount possible without claiming more than they're entitled to.
+// Which means we have to check these two assertions:
+//
+// (amount + fee) * MyTeamTotal <= (Team1Total + Team2Total) * MyBet
+// 
+// (amount + fee + 1) * MyTeamTotal > (Team1Total + Team2Total) * MyBet
+// which equates to:
+// (amount + fee) * MyTeamTotal + MyTeamTotal > (Team1Total + Team2Total) * MyBet
+
+
+// Calculating left hand side [(amount + fee) * MyTeamTotal]
+
+// first get my team total (thanks to dup call earlier)
 byte "Team2"
 app_global_get
 ==
@@ -274,17 +356,21 @@ skip1:
 
 app_global_get
 dup
-store 0
+store 0 // store this value (=MyTeamTotal) for second assertion
 
-gtxn 0 Amount
-gtxn 0 Fee
+//now multiply by amount + fee (= amount requested)
+gtxn 0 AssetAmount // ver 1.1
+// gtxn 0 Fee
+byte "FixedFee"
+app_global_get
 +
 *
 
+// store LHS [(amount + fee) * MyTeamTotal]
 dup
 store 1
 
-
+// Calculating right hand side [(Team1Total + Team2Total) * MyBet]
 byte "Team1Total"
 app_global_get
 byte "Team2Total"
@@ -295,12 +381,15 @@ byte "MyBet"
 app_local_get
 *
 
+// store it
 dup
 store 2
 
+// FIRST ASSERT
 <=
 assert
 
+// SECOND ASSERT
 load 0
 load 1
 +
@@ -308,6 +397,7 @@ load 2
 >
 assert
 
+// Bet has been claimed, reduce to 0 so that user cannot claim twice
 int 0
 byte "MyBet"
 int 0
@@ -318,6 +408,7 @@ b done
 
 reclaim:
 
+// Can reclaim if past EndDate and no winner was set
 global LatestTimestamp
 byte "EndDate"
 app_global_get
@@ -336,23 +427,25 @@ int 2
 assert
 
 gtxn 0 TypeEnum
-int 1
+int axfer // ver 1.1
 ==
 assert
 
-gtxn 0 Sender
+gtxn 0 AssetSender
 byte "Escrow"
 app_global_get
 ==
 assert
 
-gtxn 0 Receiver
+gtxn 0 AssetReceiver // ver 1.1
 gtxn 1 Sender
 ==
 assert
 
-gtxn 0 Amount
-gtxn 0 Fee
+gtxn 0 AssetAmount // ver 1.1
+// gtxn 0 Fee
+byte "FixedFee"
+app_global_get
 +
 int 0
 byte "MyBet"
@@ -360,6 +453,7 @@ app_local_get
 ==
 assert
 
+// Decrement sender's bet
 int 0
 byte "MyBet"
 int 0

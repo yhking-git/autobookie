@@ -1,10 +1,10 @@
 {
   "name": "autobookie",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "",
   "main": "cli.js",
   "scripts": {
-    "test": "node cli.js test"
+    "test": "node test.js"
   },
   "author": "",
   "license": "ISC",
