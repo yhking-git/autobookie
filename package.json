@@ -1,0 +1,17 @@
+{
+  "name": "autobookie",
+  "version": "1.0.0",
+  "description": "",
+  "main": "cli.js",
+  "scripts": {
+    "test": "node cli.js test"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "algosdk": "~1.15.0",
+    "dotenv": "^16.0.1",
+    "js-base64": "^3.6.1",
+    "prompt-sync": "^4.2.0"
+  }
+}

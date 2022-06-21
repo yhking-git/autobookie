@@ -1,0 +1,202 @@
+#########################################
+#       Autobookie-2-core design        #
+#                                       #
+#       Create: 04/11/2022              #
+#       Update history                  #
+#         2022.04.11 the 1st            #
+#########################################
+
+
+
+
+
+# This smart contract is a complete dapp.
+# This would be compiled to bytecode and deployed to the Algorand blockchain.
+# The admin and users interact with dapp using transaction(shortly txn) or grouped transaction(shortly gtxn).
+# Probably, these interactions are performed on the web site.
+# 	- The admin can set time limit of betting and the winning team.
+# 	- The user can bet.
+# This dapp is written in pseudocode and can be rewritable in any language in the future.
+
+
+
+
+
+#################################### dapp #######################################
+
+#### Declare global state variables for all users.
+
+global.Team1		# the name of the 1st team in the match(eg "Los Angeles Lakers")
+global.Team2		# the name of the 2nd team in the match(eg "golden State Warriors")
+global.LimitDate	# the date after which no more bets can be placed, and the winning team can be set by the admin
+global.EndDate		# the date after which funds can be reclaimed if the admin did not set a winning team
+global.Winner		# the winning team
+global.Escrow		# the address of the escrow account that holds the funds(actually the site account)
+global.Team1Total	# the total amount wagered on team 1
+global.Team1Total	# the total amount wagered on team 2
+
+
+#### Declare local state variables for particular user.
+
+local.MyTeam		# the team the user has wagered for
+local.MyBet			# the amount wagered by the user
+
+
+#### Note that the namespace avm is the global context of the Algorand Virtual Machine.
+
+
+#### The core logic of dapp
+
+# If the dapp returns a value of 1, the smart contract is successful.
+
+# This is the 1st time of dapp running, so initialize global state variables.
+
+if txn.ApplicationID == 0				
+	assert txn.NumAppArgs == 4		# Make sure txn has a valid number of arguments.
+
+	global.Team1      = txn.ApplicationArgs[0]
+	global.Team2      = txn.ApplicationArgs[1]
+	global.LimitDate  = txn.ApplicationArgs[2].btoi
+	global.EndDate    = txn.ApplicationArgs[3].btoi
+	global.Winner     = ""
+	global.Team1Total = 0
+	global.Team2Total = 0
+
+	return 1
+end
+
+
+# In this phase dapp was already created and initialized.
+
+
+# Before executing the ApprovalProgram, allocate local state for this application into the sender's account data.
+
+if txn.OnCompletion == avm.OptIn
+
+	# Perform couple of validations.
+	assert avm.LatestTimestamp <= global.LimitDate
+	assert avm.GroupSize == 2
+	assert gtxn[0].TypeEnum == avm.Payment
+	assert gtxn[0].Receiver == global.Escrow
+	assert gtxn[0].Amount >= 10000
+	assert txn.NumAppArgs == 1
+	assert txn.ApplicationArgs[0] == global.Team1 || txn.ApplicationArgs[0] == global.Team2
+	
+	# Allocate local state.
+	
+	local.MyTeam = txn.ApplicationArgs[0]
+	local.MyBet = gtxn[0].Amount
+
+	# And finally, update the global bet amount according to the team.
+	
+	if txn.ApplicationArgs[0] == global.Team1
+		global.Team1Total += gtxn[0].Amount
+	else
+		global.Team2Total += gtxn[0].Amount
+	end
+	
+	return 1
+end
+
+
+# Actions.
+
+if txn.OnCompletion == avm.NoOp
+
+	if txn.Sender == avm.CreatorAddress		# Admin actions.
+	
+		assert txn.NumAppArgs == 2		# Make sure txn has a valid number of arguments.
+		
+		# Admin sets states.
+	
+		if txn.ApplicationArgs[0] == "escrow"		# Admin sets escrow address.
+			global.Escrow = tnx.ApplicationArgs[1]
+		
+		elsif txn.ApplicationArgs[0] == "winner"	# Admin sets winning team.
+	
+			# Perform couple of validations.
+			
+			assert avm.LatestTimestamp > global.LimitDate
+			assert avm.LatestTimestamp <= global.EndDate
+			assert txn.ApplicationArgs[1] == global.Team1 || txn.ApplicationArgs[1] == global.Team2
+	
+			global.Winner = txn.ApplicationArgs[1]
+		
+		else
+			error	# Process exceptions.
+		end
+	
+		return 1
+		
+	else	# User actions.
+	
+		if txn.ApplicationArgs[0] == "claim"	# Claiming will be performed automatically if only smart contract is successed.
+	
+			# Perform couple of validations.
+			
+			assert avm.GroupSize == 2
+			assert gtxn[0].TypeEnum == avm.Payment
+			assert gtxn[0].Sender == global.Escrow
+			assert gtxn[0].Receiver == gtxn[1].Sender
+			
+			# Make sure my team won.
+			
+			assert global.Winner == local.MyTeam
+			
+			# Define temporary variable.
+			
+			MyTeamTotal = (local.MyTeam == global.Team1 ? global.Team1Total : global.Team2Total)
+			
+			# Amount winnings is following equation.
+			# winnings = local.MyBet / MyTeamTotal * (global.Team1Total + global.Team2Total)
+			# or
+			# winnings = gtxn[0].Amount + gtxn[0].Fee
+			# Two equations must be passed to avoid rounding of real numbers.
+			
+			assert (gtxn[0].Amount + gtxn[0].Fee) * MyTeamTotal <= (global.Team1Total + global.Team2Total) * local.MyBet
+			assert (gtxn[0].Amount + gtxn[0].Fee) * MyTeamTotal + MyTeamTotal > (global.Team1Total + global.Team2Total) * local.MyBet
+			
+			# Now, payment transaction from the escrow address to the user would be performed automatically.
+						
+			local.MyBet = 0	# User can not claim any more.
+			
+			return 1
+			
+		elsif txn.ApplicationArgs[0] == "reclaim"	# Reclaiming
+		
+			# Perform couple of validations.
+			
+			assert LatestTimestamp > global.EndDate
+			assert "" == global.Winner
+			
+			assert avm.GroupSize == 2
+			assert gtxn[0].TypeEnum == avm.Payment
+			assert gtxn[0].Sender == global.Escrow
+			assert gtxn[0].Receiver == gtxn[1].Sender
+			assert gtxn[0].Amount + gtxn[0].Fee == local.MyBet
+			
+			local.MyBet = 0 # User can not claim any more.
+			
+			return 1
+			
+		else
+			error	# Process exceptions.
+		end
+	end
+end
+
+
+# After executing the ApprovalProgram, replace the ApprovalProgram and ClearStateProgram associated with this application ID with the programs specified in this transaction.
+
+if txn.OnCompletion == avm.UpdateApplication
+	return txn.Sender == avm.CreatorAddress		# Only dapp creator, maybe admin, can update dapp.
+end
+
+
+if txn.OnCompletion == avm.CloseOut
+	# TODO something
+	return 1
+end
+
+
+
