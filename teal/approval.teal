@@ -1,6 +1,6 @@
 #pragma version 3
 
-// ver 1.1
+// ver 1.2
 // GLOBAL STATE
 // LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
 // EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
@@ -12,6 +12,22 @@
 // Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
 // Winner     # string:  the winning team
 
+// LOCAL STATE
+// local.MyBettingCount	# the number of bettings
+// local.MyTeam0			# name of team I bet
+// local.MyBet0			# amount of my betting on team
+// local.MyTeam1
+// local.MyBet1
+// local.MyTeam2
+// local.MyBet2
+// local.MyTeam3
+// local.MyBet3
+// local.MyTeam4
+// local.MyBet4
+// local.MyTeam5
+// local.MyBet5
+// local.MyTotal1
+// local.MyTotal2
 
 txn ApplicationID
 int 0
@@ -22,7 +38,7 @@ bz not_creation
 // Set Team1Name, Team2Name, LimitDate and EndDate on app creation 
 
 txn NumAppArgs
-int 5 // ver 1.1
+int 5
 ==
 assert
 
@@ -44,7 +60,7 @@ txna ApplicationArgs 3
 btoi
 app_global_put
 
-byte "FixedFee" // ver 1.1
+byte "FixedFee"
 txna ApplicationArgs 4
 btoi
 app_global_put
@@ -115,88 +131,12 @@ app_global_get
 <=
 assert
 
-global GroupSize
-int 2
-==
-assert
-
-gtxn 0 TypeEnum
-int axfer // ver 1.1
-==
-assert
-
-gtxn 0 AssetReceiver // ver 1.1
-byte "Escrow"
-app_global_get
-==
-assert
-
-gtxn 0 AssetAmount // ver 1.1
-// int 10000
-// >=
-byte "FixedFee"
-app_global_get
->
-assert
-
-
-txn NumApplications
 int 0
-==
-assert
-
-txn NumAppArgs
-int 1
-==
-assert
-
-// The only argument must be one of the two team names
-txna ApplicationArgs 0
-byte "Team1"
-app_global_get
-==
-txna ApplicationArgs 0
-byte "Team2"
-app_global_get
-==
-// Assuming the assert passed, this value will be 0 if user voted for team 1 and 1 if user voted for team 2
-// We'll store it for later to figure out which team's total to increment
-dup
-store 0 
-||
-assert
-
-
-// Set local state
+byte "MyBettingCount"
 int 0
-byte "MyTeam"
-txna ApplicationArgs 0
 app_local_put
 
-int 0 
-byte "MyBet"
-gtxn 0 AssetAmount // ver 1.1
-app_local_put
-
-
-// Update global state
-load 0
-bnz Team2Bet
-
-// User voted for team1
-byte "Team1Total"
-b skip0
-
-Team2Bet:
-// User voted for team2
-byte "Team2Total"
-skip0:
-
-dup
-app_global_get
-gtxn 0 AssetAmount // ver 1.1
-+
-app_global_put
+b done
 
 b done
 
@@ -278,6 +218,10 @@ client_noop:
 
 // Parse client args
 txna ApplicationArgs 0
+byte "bet" 
+==
+bnz bet
+txna ApplicationArgs 0
 byte "claim" 
 ==
 bnz claim
@@ -286,6 +230,245 @@ byte "reclaim"
 ==
 bnz reclaim
 err
+
+bet:
+
+byte "LimitDate"
+app_global_get
+<=
+assert
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 6
+<
+assert
+
+global GroupSize
+int 2
+==
+assert
+
+gtxn 0 TypeEnum
+int axfer
+==
+assert
+
+gtxn 0 AssetReceiver
+byte "Escrow"
+app_global_get
+==
+assert
+
+gtxn 0 AssetAmount
+// int 10000
+// >=
+byte "FixedFee"
+app_global_get
+>
+assert
+
+
+txn NumApplications
+int 0
+==
+assert
+
+txn NumAppArgs
+int 1
+==
+assert
+
+// The only argument must be one of the two team names
+txna ApplicationArgs 1
+byte "Team1"
+app_global_get
+==
+txna ApplicationArgs 1
+byte "Team2"
+app_global_get
+==
+// Assuming the assert passed, this value will be 0 if user voted for team 1 and 1 if user voted for team 2
+// We'll store it for later to figure out which team's total to increment
+dup
+store 0 
+||
+assert
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 0
+==
+bnz count0
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 1
+==
+bnz count1
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 2
+==
+bnz count2
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 3
+==
+bnz count3
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 4
+==
+bnz count4
+
+int 0
+byte "MyBettingCount"
+app_local_get
+int 5
+==
+bnz count5
+
+err
+
+count0:
+int 0
+byte "MyTeam0"
+txna ApplicationArgs 1
+app_local_put
+
+int 0 
+byte "MyBet0"
+gtxn 0 AssetAmount
+app_local_put
+
+b count_end
+
+count1:
+int 0
+byte "MyTeam1"
+txna ApplicationArgs 1
+app_local_put
+
+int 0 
+byte "MyBet1"
+gtxn 0 AssetAmount
+app_local_put
+
+b count_end
+
+count2:
+int 0
+byte "MyTeam2"
+txna ApplicationArgs 1
+app_local_put
+
+int 0 
+byte "MyBet2"
+gtxn 0 AssetAmount
+app_local_put
+
+b count_end
+
+count3:
+int 0
+byte "MyTeam3"
+txna ApplicationArgs 1
+app_local_put
+
+int 0 
+byte "MyBet3"
+gtxn 0 AssetAmount
+app_local_put
+
+b count_end
+
+count4:
+int 0
+byte "MyTeam4"
+txna ApplicationArgs 1
+app_local_put
+
+int 0 
+byte "MyBet4"
+gtxn 0 AssetAmount
+app_local_put
+
+b count_end
+
+count5:
+int 0
+byte "MyTeam5"
+txna ApplicationArgs 1
+app_local_put
+
+int 0 
+byte "MyBet5"
+gtxn 0 AssetAmount
+app_local_put
+
+b count_end
+
+count_end:
+
+byte "MyBettingCount"
+app_global_get
+int 1
++
+byte "MyBettingCount"
+app_global_put
+
+// Update global state
+load 0
+bnz Team2Bet
+
+// User voted for team1
+byte "Total1"
+byte "Total1"
+app_global_get
+gtxn 0 AssetAmount
++
+app_global_put
+int 0
+byte "MyTotal1"
+int 0
+byte "MyTotal1"
+app_local_get
+gtxn 0 AssetAmount
++
+app_local_put
+
+b skip0
+
+Team2Bet:
+// User voted for team2
+byte "Total2"
+byte "Total2"
+app_global_get
+gtxn 0 AssetAmount
++
+app_global_put
+int 0
+byte "MyTotal2"
+int 0
+byte "MyTotal2"
+app_local_get
+gtxn 0 AssetAmount
++
+app_local_put
+
+skip0:
+
+b done
 
 claim:
 
@@ -296,18 +479,18 @@ int 2
 assert
 
 gtxn 0 TypeEnum
-int axfer // ver 1.1
+int axfer
 ==
 assert
 
-gtxn 0 Sender // ver 1.1
+gtxn 0 Sender
 byte "Escrow"
 app_global_get
 ==
 assert
 
 // Assert the reciever is also the one calling app...
-gtxn 0 AssetReceiver // ver 1.1
+gtxn 0 AssetReceiver
 gtxn 1 Sender
 ==
 assert
@@ -319,8 +502,6 @@ app_local_get
 dup // we'll use this later
 byte "Winner"
 app_global_get
-==
-assert
 
 // The calculation for the total amount claimed is calculated as following:
 // amount + fee == MyBet / MyTeamTotal * (Team1Total + Team2Total)
@@ -347,11 +528,11 @@ app_global_get
 ==
 bnz Team2Total
 
-byte "Team1Total"
+byte "Total1"
 b skip1
 
 Team2Total:
-byte "Team2Total"
+byte "Total2"
 skip1:
 
 app_global_get
@@ -359,7 +540,7 @@ dup
 store 0 // store this value (=MyTeamTotal) for second assertion
 
 //now multiply by amount + fee (= amount requested)
-gtxn 0 AssetAmount // ver 1.1
+gtxn 0 AssetAmount
 // gtxn 0 Fee
 byte "FixedFee"
 app_global_get
@@ -376,7 +557,22 @@ app_global_get
 byte "Team2Total"
 app_global_get
 +
+
 int 0
+byte "Winner"
+app_global_get
+byte "Team2"
+app_global_get
+==
+bnz team2_local
+byte "MyTotal1"
+b skip_local
+
+team2_local:
+byte "MyTotal2"
+
+skip_local:
+
 byte "MyBet"
 app_local_get
 *
@@ -399,7 +595,35 @@ assert
 
 // Bet has been claimed, reduce to 0 so that user cannot claim twice
 int 0
-byte "MyBet"
+byte "MyBet0"
+int 0
+app_local_put
+int 0
+byte "MyBet1"
+int 0
+app_local_put
+int 0
+byte "MyBet2"
+int 0
+app_local_put
+int 0
+byte "MyBet3"
+int 0
+app_local_put
+int 0
+byte "MyBet4"
+int 0
+app_local_put
+int 0
+byte "MyBet5"
+int 0
+app_local_put
+int 0
+byte "MyTotal1"
+int 0
+app_local_put
+int 0
+byte "MyTotal2"
 int 0
 app_local_put
 
@@ -427,7 +651,7 @@ int 2
 assert
 
 gtxn 0 TypeEnum
-int axfer // ver 1.1
+int axfer
 ==
 assert
 
@@ -437,12 +661,12 @@ app_global_get
 ==
 assert
 
-gtxn 0 AssetReceiver // ver 1.1
+gtxn 0 AssetReceiver
 gtxn 1 Sender
 ==
 assert
 
-gtxn 0 AssetAmount // ver 1.1
+gtxn 0 AssetAmount
 // gtxn 0 Fee
 byte "FixedFee"
 app_global_get
@@ -455,7 +679,35 @@ assert
 
 // Decrement sender's bet
 int 0
-byte "MyBet"
+byte "MyBet0"
+int 0
+app_local_put
+int 0
+byte "MyBet1"
+int 0
+app_local_put
+int 0
+byte "MyBet2"
+int 0
+app_local_put
+int 0
+byte "MyBet3"
+int 0
+app_local_put
+int 0
+byte "MyBet4"
+int 0
+app_local_put
+int 0
+byte "MyBet5"
+int 0
+app_local_put
+int 0
+byte "MyTotal1"
+int 0
+app_local_put
+int 0
+byte "MyTotal2"
 int 0
 app_local_put
 

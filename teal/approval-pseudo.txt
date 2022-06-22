@@ -1,49 +1,59 @@
+####################################
+#       Autobookie-core            #
+#                                  #
+#       Create: 04/11/2022         #
+#       Update history             #
+#         2022.04.11 v1.0          #
+#         2022.05.11 v1.1          #
+#         2022.06.22 v1.2.0        #
+####################################
+
 global.LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
 global.EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
-global.FixedFee   # integer: the amount of fixed fee # ver 1.1
-global.Team1Total # integer: the total amount wagered on team 1
-global.Team1Total # integer: the total amount wagered on team 2
+global.FixedFee   # integer: the amount of fixed fee
+global.Total1     # integer: the total amount wagered on team 1
+global.Total2     # integer: the total amount wagered on team 2
 global.Team1      # string:  the name of the 1st team in the match(eg "Los Angeles Lakers")
 global.Team2      # string:  the name of the 2nd team in the match(eg "golden State Warriors")
 global.Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
 global.Winner     # string:  the winning team
 
-local.MyTeam		# the team the user has wagered for
-local.MyBet			# the amount wagered by the user
+# ver 1.2
+local.MyBettingCount	# the number of bettings
+local.MyTeam0			# name of team I bet
+local.MyBet0			# amount of my betting on team
+local.MyTeam1
+local.MyBet1
+local.MyTeam2
+local.MyBet2
+local.MyTeam3
+local.MyBet3
+local.MyTeam4
+local.MyBet4
+local.MyTeam5
+local.MyBet5
+local.MyTotal1
+local.MyTotal2
+
 
 if txn.ApplicationID == 0				
-	assert txn.NumAppArgs == 5 # ver 1.1
+	assert txn.NumAppArgs == 5
 
 	global.Team1      = txn.ApplicationArgs[0]
 	global.Team2      = txn.ApplicationArgs[1]
 	global.LimitDate  = txn.ApplicationArgs[2].btoi
 	global.EndDate    = txn.ApplicationArgs[3].btoi
-	global.FixedFee   = txn.ApplicationArgs[4].btoi # ver 1.1
+	global.FixedFee   = txn.ApplicationArgs[4].btoi
 	global.Winner     = ""
-	global.Team1Total = 0
-	global.Team2Total = 0
+	global.Total1 = 0
+	global.Total2 = 0
 
 	return 1
 end
 
 if txn.OnCompletion == avm.OptIn
 	assert avm.LatestTimestamp <= global.LimitDate
-	assert avm.GroupSize == 2
-	assert gtxn[0].TypeEnum == avm.AssetTransfer # ver 1.1
-	assert gtxn[0].Receiver == global.Escrow
-	assert gtxn[0].AssetAmount > global.FixedFee # ver 1.1
-	assert txn.NumAppArgs == 1
-	assert txn.NumApplications == 0
-	assert txn.ApplicationArgs[0] == global.Team1 || txn.ApplicationArgs[0] == global.Team2
-
-	local.MyTeam = txn.ApplicationArgs[0]
-	local.MyBet = gtxn[0].AssetAmount # ver 1.1
-
-	if txn.ApplicationArgs[0] == global.Team1
-		global.Team1Total += gtxn[0].AssetAmount # ver 1.1
-	else
-		global.Team2Total += gtxn[0].AssetAmount # ver 1.1
-	end
+	local.MyBettingCount = 0 # ver 1.2
 
 	return 1
 end
@@ -66,32 +76,94 @@ if txn.OnCompletion == avm.NoOp
 
 		return 1
 	else
-		if txn.ApplicationArgs[0] == "claim"
+		if txn.ApplicationArgs[0] == "bet" # ver 1.2
+			assert avm.LatestTimestamp <= global.LimitDate
+			assert local.MyBettingCount < 6
 			assert avm.GroupSize == 2
-			assert gtxn[0].TypeEnum == avm.AssetTransfer # ver 1.1
-			assert gtxn[0].Sender == global.Escrow
-			assert gtxn[0].Receiver == gtxn[1].Sender
-			assert global.Winner == local.MyTeam
+			assert gtxn[0].TypeEnum == avm.AssetTransfer
+			assert gtxn[0].Receiver == global.Escrow
+			assert gtxn[0].AssetAmount > global.FixedFee
+			assert txn.NumAppArgs == 1
+			assert txn.NumApplications == 0
+			assert txn.ApplicationArgs[1] == global.Team1 || txn.ApplicationArgs[1] == global.Team2
 
-			MyTeamTotal = (local.MyTeam == global.Team1 ? global.Team1Total : global.Team2Total)
+			if local.MyBettingCount == 0
+				local.MyTeam0 = txn.ApplicationArgs[1]
+				local.MyBet0 = gtxn[0].AssetAmount
+			elsif local.MyBettingCount == 1
+				local.MyTeam1 = txn.ApplicationArgs[1]
+				local.MyBet1 = gtxn[0].AssetAmount
+			elsif local.MyBettingCount == 2
+				local.MyTeam2 = txn.ApplicationArgs[1]
+				local.MyBet2 = gtxn[0].AssetAmount
+			elsif local.MyBettingCount == 3
+				local.MyTeam3 = txn.ApplicationArgs[1]
+				local.MyBet3 = gtxn[0].AssetAmount
+			elsif local.MyBettingCount == 4
+				local.MyTeam4 = txn.ApplicationArgs[1]
+				local.MyBet4 = gtxn[0].AssetAmount
+			elsif local.MyBettingCount == 5
+				local.MyTeam5 = txn.ApplicationArgs[1]
+				local.MyBet5 = gtxn[0].AssetAmount
+			end
 
-			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal <= (global.Team1Total + global.Team2Total) * local.MyBet # ver 1.1
-			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal + MyTeamTotal > (global.Team1Total + global.Team2Total) * local.MyBet # ver 1.1
+			local.MyBettingCount += 1
 
-			local.MyBet = 0
+			if txn.ApplicationArgs[0] == global.Team1
+				global.Total1 += gtxn[0].AssetAmount
+				local.MyTotal1 += gtxn[0].AssetAmount
+			else
+				global.Total2 += gtxn[0].AssetAmount
+				local.MyTotal2 += gtxn[0].AssetAmount
+			end
 
 			return 1
-		elsif txn.ApplicationArgs[0] == "reclaim"
+		elsif txn.ApplicationArgs[0] == "claim" # ver 1.2
+			assert avm.GroupSize == 2
+			assert gtxn[0].TypeEnum == avm.AssetTransfer
+			assert gtxn[0].Sender == global.Escrow
+			assert gtxn[0].Receiver == gtxn[1].Sender
+			# assert global.Winner == local.MyTeam
+
+			if global.Winner == global.Team1
+				MyTeamTotal = global.Total1
+				MyBet = local.MyTotal1
+			else
+				MyTeamTotal = global.Total2
+				MyBet = local.MyTotal2
+			end
+
+			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal <= (global.Total1 + global.Total2) * MyBet
+			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal + MyTeamTotal > (global.Total1 + global.Total2) * MyBet
+
+			local.MyBet0 = 0
+			local.MyBet1 = 0
+			local.MyBet2 = 0
+			local.MyBet3 = 0
+			local.MyBet4 = 0
+			local.MyBet5 = 0
+			local.MyTotal1 = 0
+			local.MyTotal2 = 0
+
+			return 1
+		elsif txn.ApplicationArgs[0] == "reclaim" # ver 1.2
 			assert LatestTimestamp > global.EndDate
 			assert "" == global.Winner
 
 			assert avm.GroupSize == 2
-			assert gtxn[0].TypeEnum == avm.AssetTransfer # ver 1.1
+			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Sender == global.Escrow
 			assert gtxn[0].Receiver == gtxn[1].Sender
-			assert gtxn[0].Amount + global.FixedFee == local.MyBet # ver 1.1
+			assert gtxn[0].Amount + global.FixedFee == (local.MyTotal1 + local.MyTotal2)
 
-			local.MyBet = 0
+			local.MyBet0 = 0
+			local.MyBet1 = 0
+			local.MyBet2 = 0
+			local.MyBet3 = 0
+			local.MyBet4 = 0
+			local.MyBet5 = 0
+			local.MyTotal1 = 0
+			local.MyTotal2 = 0
 
 			return 1
 		else
