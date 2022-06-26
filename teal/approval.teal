@@ -239,6 +239,11 @@ AdminSetWinner:
 
 
 UserNoOp:
+  txn NumAppArgs
+  int 1
+  ==
+  assert
+
   txna ApplicationArgs 0
   byte "bet" 
   ==
@@ -265,14 +270,10 @@ UserNoOp:
 
 
 UserBet:
+  global LatestTimestamp
   byte "LimitDate"
   app_global_get
   <=
-  assert
-
-  txn NumAppArgs
-  int 2
-  ==
   assert
 
   int 0
@@ -299,8 +300,6 @@ UserBet:
   assert
 
   gtxn 0 AssetAmount
-  // int 10000
-  // >=
   byte "FixedFee"
   app_global_get
   >

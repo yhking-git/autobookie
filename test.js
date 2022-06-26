@@ -26,28 +26,35 @@ const util = require('./util.js');
   const USER2_MNEMONIC="piece another expect relax practice april thunder sail danger limb magnet rare island walk project claw cook soda life lend come feature grab able absurd"
 
   // 1. Initialize the Core
-  let core = new api.AutobookieCore(ALGOD_TOKEN, ALGOD_ADDRESS, ALGOD_PORT, api.USDC_ASSET_ID_TESTNET, 2*1000*1000);
+  let core = new api.AutobookieCore(ALGOD_TOKEN, ALGOD_ADDRESS, ALGOD_PORT, api.USDC_ASSET_ID_TESTNET, 1000*1000);
 
   // print assets info
   await core.getAccountAssetInfo(ADMIN_ADDRESS, api.USDC_ASSET_ID_TESTNET);
   await core.getAccountAssetInfo(ESCROW_ADDRESS, api.USDC_ASSET_ID_TESTNET);
   
   // 2. admin creates dapp
-  const limitDate = Math.round(Date.now()/1000) + 60; // 1 minute from now
-  const endDate = Math.round(Date.now()/1000) + 60*60*24*14; // 2 weeks from now
+  const limitDate = Math.round(Date.now()/1000) + 2*60; // 2 minutes from now
+  const endDate = Math.round(Date.now()/1000) + 5*60;  // 5 minutes from now
   let dapp = await core.createDapp(ADMIN_MNEMONIC, ESCROW_MNEMONIC, "team1", "team2", limitDate, endDate);
 
-  // 3. users bet
-  await core.bet(USER1_MNEMONIC, dapp, 4*1000*1000, 'team1');
-  await core.bet(USER2_MNEMONIC, dapp, 3*1000*1000, 'team2');
+  // 3. users ready betting
+  await core.readyBet(USER1_MNEMONIC, dapp.appId);
+  await core.readyBet(USER2_MNEMONIC, dapp.appId);
 
-  // 4. admin sets winner to team2
+  // 4. users bet
+  await core.bet(USER1_MNEMONIC, dapp.appId, 2000*1000, 'team1', dapp.escrow.addr);
+  await core.bet(USER1_MNEMONIC, dapp.appId, 2000*1000, 'team1', dapp.escrow.addr);
+  await core.bet(USER1_MNEMONIC, dapp.appId, 2000*1000, 'team1', dapp.escrow.addr);
+  await core.bet(USER2_MNEMONIC, dapp.appId, 2000*1000, 'team1', dapp.escrow.addr);
+  await core.bet(USER2_MNEMONIC, dapp.appId, 2000*1000, 'team2', dapp.escrow.addr);
+
+  // 5. admin sets winner to team2
   await core.setWinner(ADMIN_MNEMONIC, dapp, 'team2');
 
-  // 5. user3 claim his winnings
-  await core.claim(USER2_MNEMONIC, dapp, 3*1000*1000, 3*1000*1000, 4*1000*1000);
+  // 6. user3 claim his winnings
+  await core.claim(USER2_MNEMONIC, dapp, 2000*1000, 2000*1000, 8000*1000);
 
-  // 6. admin deletes dapp
+  // 7. admin deletes dapp
   await core.deleteDappById(ADMIN_MNEMONIC, dapp.appId);
 }
 

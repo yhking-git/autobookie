@@ -56,11 +56,34 @@ class AutobookieCore {
   }
 
   /**
+   * Function used to print asset info for account and assetid
+   * @param {string} addr 
+   * @param {number} assetId 
+   */
+   async getAccountAssetInfo(addr, assetId) {
+    const accountInfo = await this.client.accountInformation(addr).do();
+    let assetInfo = {};
+    assetInfo['address'] = addr;
+    assetInfo['algo'] = accountInfo['amount'];
+    for (let idx = 0; idx < accountInfo['assets'].length; idx++) {
+        const scrutinizedAsset = accountInfo['assets'][idx];
+        if (scrutinizedAsset['asset-id'] == assetId) {
+            // let myassetinfo = JSON.stringify(scrutinizedAsset, undefined, 2);
+            assetInfo.asset = scrutinizedAsset;
+            break;
+        }
+    }
+
+    console.log("info = " + JSON.stringify(assetInfo, undefined, 2));
+    return assetInfo
+  }
+
+  /**
    * @param {string} mnemonic 
    */
   async makeAccoutCanUseUsdc(mnemonic) {
-    let account = algosdk.mnemonicToSecretKey(mnemonic);
-    let txn = await this.#makeUsdcTransferTxn(account.addr, account.addr, 0);
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const txn = await this.#makeUsdcTransferTxn(account.addr, account.addr, 0);
     await this.#sendSingleTxn(account.sk, txn);
     await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
   }
@@ -98,43 +121,16 @@ class AutobookieCore {
 
     // console.log('Funding escrow account');
     // await this.getAccountAssetInfo(escrowAccount.addr, this.usdcAssetId);
-    // let txn = algosdk.makePaymentTxnWithSuggestedParams(creatorAccount.addr, escrowAccount.addr, 1000000, undefined, undefined, await this.#getMinParams());
+    // const txn = algosdk.makePaymentTxnWithSuggestedParams(creatorAccount.addr, escrowAccount.addr, 1000000, undefined, undefined, await this.#getMinParams());
     // await this.#sendSingleTxn(creatorAccount.sk, txn);
     // await this.getAccountAssetInfo(escrowAccount.addr, 0);
     // console.log('Funding escrow account done');
 
     await this.makeAccoutCanUseUsdc(escrow.mnemonic);
-    let dapp = new AutobookieDapp(appId, creatorAccount.addr, escrow, team1, team2, limitDate, endDate);
+    const dapp = new AutobookieDapp(appId, creatorAccount.addr, escrow, team1, team2, limitDate, endDate);
     await this.setEscrow(creatorMnemonic, dapp);
     console.log('DApp created: ', dapp);
     return dapp;
-  }
-
-  /**
-   * @param {string} mnemonic
-   * @param {AutobookieDapp} dapp
-   * @param {number} amount
-   * @param {string} myTeam
-   */
-  async bet(mnemonic, dapp, amount, myTeam) {
-    console.log("Betting starting...");
-    if (myTeam !== dapp.team1 && myTeam !== dapp.team2) {
-      console.log(`Invalid team: ${myTeam}`);
-      return;
-    }
-
-    if (amount <= this.fixedFee) {
-      console.log(`Invalid amount: ${amount}`);
-      return;
-    }
-
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
-    console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
-    const params = await this.#getMinParams();
-    const txn0 = await this.#makeUsdcTransferTxn(account.addr, dapp.escrow.addr, amount);
-    const txn1 = algosdk.makeApplicationOptInTxn(account.addr, params, dapp.appId, [stringToByteArray(myTeam)]);
-    await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
-    console.log("Betting complete!");
   }
 
   /**
@@ -145,7 +141,7 @@ class AutobookieCore {
   async setEscrow(mnemonic, dapp) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     console.log(`Updating application ${dapp.appId} with escrow address`);
-    await this.#callApp(account, dapp.appId, [stringToByteArray('escrow'), algosdk.decodeAddress(dapp.escrow.addr).publicKey]);
+    await this.#callAppNoOp(account, dapp.appId, [stringToByteArray('escrow'), algosdk.decodeAddress(dapp.escrow.addr).publicKey]);
     console.log('Successfully updated escrow address:');
   }
 
@@ -162,9 +158,39 @@ class AutobookieCore {
       await sleep(seconds + 10);
     }
     const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const response = await this.#callApp(account, dapp.appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
+    const response = await this.#callAppNoOp(account, dapp.appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
     console.log("Successfully update application:");
     console.log(response, '\n\n');
+  }
+
+  /**
+   * 
+   * @param {string} mnemonic 
+   * @param {number} appId 
+   */
+  async readyBet(mnemonic, appId) {
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const params = await this.#getMinParams();
+    const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
+    return this.#sendSingleTxn(account.sk, txn);
+  }
+
+  /**
+   * @param {string} mnemonic
+   * @param {number} appId
+   * @param {number} amount
+   * @param {string} myTeam
+   * @param {string} escrowAddr
+   */
+   async bet(mnemonic, appId, amount, myTeam, escrowAddr) {
+    console.log("Betting starting...");
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
+    const params = await this.#getMinParams();
+    const txn0 = await this.#makeUsdcTransferTxn(account.addr, escrowAddr, amount);
+    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet')]);
+    await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
+    console.log("Betting complete!");
   }
 
   /**
@@ -182,8 +208,8 @@ class AutobookieCore {
     await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
     const params = await this.#getMinParams();
-    let txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
-    let txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
+    const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
+    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
     await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
@@ -201,14 +227,14 @@ class AutobookieCore {
     // usdc
     let info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     if (info.asset != undefined && info.asset.amount != undefined && info.asset.amount > 0) {
-      let usdcTxn = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, info.asset.amount);
+      const usdcTxn = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, info.asset.amount);
       await this.#sendSingleTxn(dapp.escrow.sk, usdcTxn);
       info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     }
     // algo
     const params = await this.#getMinParams();
-    let txn0 = algosdk.makePaymentTxnWithSuggestedParams(dapp.escrow.addr, account.addr, 0, undefined, undefined, params);
-    let txn1 = algosdk.makeApplicationDeleteTxn(account.addr, params, dapp.appId);
+    const txn0 = algosdk.makePaymentTxnWithSuggestedParams(dapp.escrow.addr, account.addr, 0, undefined, undefined, params);
+    const txn1 = algosdk.makeApplicationDeleteTxn(account.addr, params, dapp.appId);
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
     console.log("Deleted appId: ", dapp.appId);
     console.log('All done!');
@@ -223,35 +249,12 @@ class AutobookieCore {
     console.log('WARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
-    let txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
+    const txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
     const signedTxn = txn.signTxn(account.sk);
     const {txId} = await this.client.sendRawTransaction(signedTxn).do();
     await algosdk.waitForConfirmation(this.client, txId, 20);
     console.log("Deleted appId: ", appId);
     console.log('All done!');
-  }
-
-  /**
-   * Function used to print asset info for account and assetid
-   * @param {string} addr 
-   * @param {number} assetId 
-   */
-  async getAccountAssetInfo(addr, assetId) {
-    let accountInfo = await this.client.accountInformation(addr).do();
-    let assetInfo = {};
-    assetInfo['address'] = addr;
-    assetInfo['algo'] = accountInfo['amount'];
-    for (let idx = 0; idx < accountInfo['assets'].length; idx++) {
-        let scrutinizedAsset = accountInfo['assets'][idx];
-        if (scrutinizedAsset['asset-id'] == assetId) {
-            let myassetinfo = JSON.stringify(scrutinizedAsset, undefined, 2);
-            assetInfo.asset =scrutinizedAsset;
-            break;
-        }
-    }
-
-    console.log("info = " + JSON.stringify(assetInfo, undefined, 2));
-    return assetInfo
   }
 
   ////////// private methods //////////
@@ -297,11 +300,11 @@ class AutobookieCore {
    * @param {number} appId 
    * @param {Uint8Array[]} args
    */
-  async #callApp(account, appId, args=null) {
+  async #callAppNoOp(account, appId, args=null) {
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, args);
     const signedTxn = txn.signTxn(account.sk);
-    let txId = txn.txID();
+    const txId = txn.txID();
     await this.client.sendRawTransaction(signedTxn).do();
     await algosdk.waitForConfirmation(this.client, txId, 20)
     const response = await this.client.pendingTransactionInformation(txId).do();
@@ -339,7 +342,7 @@ class AutobookieCore {
     await this.client.sendRawTransaction(signedTxn).do();
     await algosdk.waitForConfirmation(this.client, txId, 20);
     const transactionResponse = await this.client.pendingTransactionInformation(txId).do();
-    let appId = transactionResponse['application-index'];
+    const appId = transactionResponse['application-index'];
     console.log("Created new app-id: ",appId);
 
     return transactionResponse;

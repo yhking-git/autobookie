@@ -77,9 +77,10 @@ if txn.OnCompletion == avm.NoOp
 
 		return 1
 	else
+		assert txn.NumAppArgs == 1
+
 		if txn.ApplicationArgs[0] == "bet"
 			assert avm.LatestTimestamp <= global.LimitDate
-			assert txn.NumAppArgs == 2
 			assert local.MyBettingCount < 6
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
