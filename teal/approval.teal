@@ -599,7 +599,7 @@ UserReclaim:
   ==
   assert
 
-  callusb UserResetBet
+  callsub UserResetBet
 
   int 1
   return
