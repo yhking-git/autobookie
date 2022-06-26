@@ -53,7 +53,8 @@ end
 
 if txn.OnCompletion == avm.OptIn
 	assert avm.LatestTimestamp <= global.LimitDate
-	local.MyBettingCount = 0 # ver 1.2
+	assert txn.NumApplications == 0
+	local.MyBettingCount = 0
 
 	return 1
 end
@@ -76,15 +77,14 @@ if txn.OnCompletion == avm.NoOp
 
 		return 1
 	else
-		if txn.ApplicationArgs[0] == "bet" # ver 1.2
+		if txn.ApplicationArgs[0] == "bet"
 			assert avm.LatestTimestamp <= global.LimitDate
+			assert txn.NumAppArgs == 2
 			assert local.MyBettingCount < 6
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Receiver == global.Escrow
 			assert gtxn[0].AssetAmount > global.FixedFee
-			assert txn.NumAppArgs == 1
-			assert txn.NumApplications == 0
 			assert txn.ApplicationArgs[1] == global.Team1 || txn.ApplicationArgs[1] == global.Team2
 
 			if local.MyBettingCount == 0
@@ -118,12 +118,11 @@ if txn.OnCompletion == avm.NoOp
 			end
 
 			return 1
-		elsif txn.ApplicationArgs[0] == "claim" # ver 1.2
+		elsif txn.ApplicationArgs[0] == "claim"
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Sender == global.Escrow
 			assert gtxn[0].Receiver == gtxn[1].Sender
-			# assert global.Winner == local.MyTeam
 
 			if global.Winner == global.Team1
 				MyTeamTotal = global.Total1
@@ -146,7 +145,7 @@ if txn.OnCompletion == avm.NoOp
 			local.MyTotal2 = 0
 
 			return 1
-		elsif txn.ApplicationArgs[0] == "reclaim" # ver 1.2
+		elsif txn.ApplicationArgs[0] == "reclaim"
 			assert LatestTimestamp > global.EndDate
 			assert "" == global.Winner
 

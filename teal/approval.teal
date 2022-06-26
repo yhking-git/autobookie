@@ -7,7 +7,7 @@
 // EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
 // FixedFee   # integer: the amount of fixed fee // ver 1.1
 // Team1Total # integer: the total amount wagered on team 1
-// Team1Total # integer: the total amount wagered on team 2
+// Team2Total # integer: the total amount wagered on team 2
 // Team1      # string:  the name of the 1st team in the match(eg "Los Angeles Lakers")
 // Team2      # string:  the name of the 2nd team in the match(eg "golden State Warriors")
 // Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
@@ -134,6 +134,11 @@ OnCompletionOptIn:
   byte "LimitDate"
   app_global_get
   <=
+  assert
+
+  txn NumApplications
+  int 0
+  ==
   assert
 
   int 0
@@ -265,6 +270,11 @@ UserBet:
   <=
   assert
 
+  txn NumAppArgs
+  int 2
+  ==
+  assert
+
   int 0
   byte "MyBettingCount"
   app_local_get
@@ -296,18 +306,6 @@ UserBet:
   >
   assert
 
-
-  txn NumApplications
-  int 0
-  ==
-  assert
-
-  txn NumAppArgs
-  int 1
-  ==
-  assert
-
-  // The only argument must be one of the two team names
   txna ApplicationArgs 1
   byte "Team1"
   app_global_get
@@ -316,136 +314,92 @@ UserBet:
   byte "Team2"
   app_global_get
   ==
-  // Assuming the assert passed, this value will be 0 if user voted for team 1 and 1 if user voted for team 2
-  // We'll store it for later to figure out which team's total to increment
   dup
-  store 0 
+  store 0 //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
   ||
   assert
 
   int 0
   byte "MyBettingCount"
   app_local_get
+  store 1
+
+  load 1
   int 0
   ==
   bnz count0
 
-  int 0
-  byte "MyBettingCount"
-  app_local_get
+  load 1
   int 1
   ==
   bnz count1
 
-  int 0
-  byte "MyBettingCount"
-  app_local_get
+  load 1
   int 2
   ==
   bnz count2
 
-  int 0
-  byte "MyBettingCount"
-  app_local_get
+  load 1
   int 3
   ==
   bnz count3
 
-  int 0
-  byte "MyBettingCount"
-  app_local_get
+  load 1
   int 4
   ==
   bnz count4
 
-  int 0
-  byte "MyBettingCount"
-  app_local_get
-  int 5
+  load 1
   ==
   bnz count5
 
   err
 
   count0:
-  int 0
-  byte "MyTeam0"
-  txna ApplicationArgs 1
-  app_local_put
-
-  int 0 
-  byte "MyBet0"
-  gtxn 0 AssetAmount
-  app_local_put
-
-  b count_end
-
+    byte "MyTeam0"
+    store 2
+    byte "MyBet0"
+    store 3
+    b count_end
   count1:
-  int 0
-  byte "MyTeam1"
-  txna ApplicationArgs 1
-  app_local_put
-
-  int 0 
-  byte "MyBet1"
-  gtxn 0 AssetAmount
-  app_local_put
-
-  b count_end
-
+    byte "MyTeam1"
+    store 2
+    byte "MyBet1"
+    store 3
+    b count_end
   count2:
-  int 0
-  byte "MyTeam2"
-  txna ApplicationArgs 1
-  app_local_put
-
-  int 0 
-  byte "MyBet2"
-  gtxn 0 AssetAmount
-  app_local_put
-
-  b count_end
-
+    byte "MyTeam2"
+    store 2
+    byte "MyBet2"
+    store 3
+    b count_end
   count3:
-  int 0
-  byte "MyTeam3"
-  txna ApplicationArgs 1
-  app_local_put
-
-  int 0 
-  byte "MyBet3"
-  gtxn 0 AssetAmount
-  app_local_put
-
-  b count_end
-
+    byte "MyTeam3"
+    store 2
+    byte "MyBet3"
+    store 3
+    b count_end
   count4:
-  int 0
-  byte "MyTeam4"
-  txna ApplicationArgs 1
-  app_local_put
-
-  int 0 
-  byte "MyBet4"
-  gtxn 0 AssetAmount
-  app_local_put
-
-  b count_end
-
+    byte "MyTeam4"
+    store 2
+    byte "MyBet4"
+    store 3
+    b count_end
   count5:
+    byte "MyTeam5"
+    store 2
+    byte "MyBet5"
+    store 3
+  count_end:
   int 0
-  byte "MyTeam5"
+  load 2 // "MyTeam0"|"MyTeam1"|"MyTeam2"|"MyTeam3"|"MyTeam4"|"MyTeam5"
   txna ApplicationArgs 1
   app_local_put
 
   int 0 
-  byte "MyBet5"
+  load 3 // "MyBet0"|"MyBet1"|"MyBet2"|"MyBet3"|"MyBet4"|"MyBet5"
   gtxn 0 AssetAmount
   app_local_put
-
-  b count_end
-
-  count_end:
 
   byte "MyBettingCount"
   app_global_get
@@ -454,49 +408,48 @@ UserBet:
   byte "MyBettingCount"
   app_global_put
 
-  // Update global state
-  load 0
-  bnz Team2Bet
+  load 0  //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
+  bnz bet_team2
+    // User voted for team1
+    byte "Total1"
+      byte "Total1"
+      app_global_get
+      gtxn 0 AssetAmount
+      +
+    app_global_put
+  
+    int 0
+    byte "MyTotal1"
+      int 0
+      byte "MyTotal1"
+      app_local_get
+      gtxn 0 AssetAmount
+      +
+    app_local_put
 
-  // User voted for team1
-  byte "Total1"
-  byte "Total1"
-  app_global_get
-  gtxn 0 AssetAmount
-  +
-  app_global_put
-  int 0
-  byte "MyTotal1"
-  int 0
-  byte "MyTotal1"
-  app_local_get
-  gtxn 0 AssetAmount
-  +
-  app_local_put
+    b bet_end
 
-  b skip0
+  bet_team2:
+    // User voted for team2
+    byte "Total2"
+      byte "Total2"
+      app_global_get
+      gtxn 0 AssetAmount
+      +
+    app_global_put
 
-  Team2Bet:
-  // User voted for team2
-  byte "Total2"
-  byte "Total2"
-  app_global_get
-  gtxn 0 AssetAmount
-  +
-  app_global_put
-  int 0
-  byte "MyTotal2"
-  int 0
-  byte "MyTotal2"
-  app_local_get
-  gtxn 0 AssetAmount
-  +
-  app_local_put
+    int 0
+    byte "MyTotal2"
+      int 0
+      byte "MyTotal2"
+      app_local_get
+      gtxn 0 AssetAmount
+      +
+    app_local_put
 
-  skip0:
-
-  int 1
-  return
+  bet_end:
+    int 1
+    return
 
 
 UserClaim:
@@ -522,18 +475,7 @@ UserClaim:
   ==
   assert
 
-  // ... and that they voted for the right team
-  int 0
-  byte "MyTeam"
-  app_local_get
-  dup // we'll use this later
-  byte "Winner"
-  app_global_get
-
-  // The calculation for the total amount claimed is calculated as following:
   // amount + fee == MyBet / MyTeamTotal * (Team1Total + Team2Total)
-  //
-  // Which equates to:
   // (amount + fee) * MyTeamTotal == (Team1Total + Team2Total) * MyBet
   //
   // Because this can result in non-integer amounts, we want users to request
@@ -541,118 +483,67 @@ UserClaim:
   // Which means we have to check these two assertions:
   //
   // (amount + fee) * MyTeamTotal <= (Team1Total + Team2Total) * MyBet
-  // 
   // (amount + fee + 1) * MyTeamTotal > (Team1Total + Team2Total) * MyBet
   // which equates to:
   // (amount + fee) * MyTeamTotal + MyTeamTotal > (Team1Total + Team2Total) * MyBet
 
-
-  // Calculating left hand side [(amount + fee) * MyTeamTotal]
-
-  // first get my team total (thanks to dup call earlier)
-  byte "Team2"
-  app_global_get
-  ==
-  bnz Team2Total
-
-  byte "Total1"
-  b skip1
-
-  Team2Total:
-  byte "Total2"
-  skip1:
-
-  app_global_get
-  dup
-  store 0 // store this value (=MyTeamTotal) for second assertion
-
-  //now multiply by amount + fee (= amount requested)
-  gtxn 0 AssetAmount
-  // gtxn 0 Fee
-  byte "FixedFee"
-  app_global_get
-  +
-  *
-
-  // store LHS [(amount + fee) * MyTeamTotal]
-  dup
-  store 1
-
-  // Calculating right hand side [(Team1Total + Team2Total) * MyBet]
-  byte "Team1Total"
-  app_global_get
-  byte "Team2Total"
-  app_global_get
-  +
-
-  int 0
   byte "Winner"
   app_global_get
   byte "Team2"
   app_global_get
   ==
-  bnz team2_local
-  byte "MyTotal1"
-  b skip_local
+  bnz winner_is_team2
+    byte "Total1"
+    app_global_get
+    store 0 // MyTeamTotal
 
-  team2_local:
-  byte "MyTotal2"
+    int 0
+    byte "MyTotal1"
+    app_local_get
+    store 3 // MyBet
 
-  skip_local:
+    b winner_end
+  winner_is_team2:
+    byte "Total2"
+    app_global_get
+    store 0 // MyTeamTotal
 
-  byte "MyBet"
-  app_local_get
+    int 0
+    byte "MyTotal2"
+    app_local_get
+    store 3 // MyBet
+  winner_end:
+  store 0 // MyTeamTotal
+    gtxn 0 AssetAmount
+    byte "FixedFee"
+    app_global_get
+    +
   *
+  store 1 // (amount + fee) * MyTeamTotal
 
-  // store it
-  dup
-  store 2
+  byte "Team1Total"
+  app_global_get
+  byte "Team2Total"
+  app_global_get
+  +
+  load 3 // MyBet
+  *
+  store 2 // (Team1Total + Team2Total) * MyBet
 
-  // FIRST ASSERT
+  load 1 // (amount + fee) * MyTeamTotal
+  load 2 // (Team1Total + Team2Total) * MyBet
   <=
   assert
 
-  // SECOND ASSERT
-  load 0
-  load 1
+  load 1 // (amount + fee) * MyTeamTotal
+  load 0 // MyTeamTotal
   +
-  load 2
+  load 2 // (Team1Total + Team2Total) * MyBet
   >
   assert
 
   // Bet has been claimed, reduce to 0 so that user cannot claim twice
-  int 0
-  byte "MyBet0"
-  int 0
-  app_local_put
-  int 0
-  byte "MyBet1"
-  int 0
-  app_local_put
-  int 0
-  byte "MyBet2"
-  int 0
-  app_local_put
-  int 0
-  byte "MyBet3"
-  int 0
-  app_local_put
-  int 0
-  byte "MyBet4"
-  int 0
-  app_local_put
-  int 0
-  byte "MyBet5"
-  int 0
-  app_local_put
-  int 0
-  byte "MyTotal1"
-  int 0
-  app_local_put
-  int 0
-  byte "MyTotal2"
-  int 0
-  app_local_put
+  callsub UserResetBet
 
   int 1
   return
@@ -693,17 +584,28 @@ UserReclaim:
   assert
 
   gtxn 0 AssetAmount
-  // gtxn 0 Fee
   byte "FixedFee"
   app_global_get
   +
+
   int 0
-  byte "MyBet"
+  byte "MyTotal1"
   app_local_get
+  int 0
+  byte "MyTotal2"
+  app_local_get
+  +
+
   ==
   assert
 
-  // Decrement sender's bet
+  callusb UserResetBet
+
+  int 1
+  return
+
+
+UserResetBet:
   int 0
   byte "MyBet0"
   int 0
@@ -736,6 +638,4 @@ UserReclaim:
   byte "MyTotal2"
   int 0
   app_local_put
-
-  int 1
-  return
+  retsub
