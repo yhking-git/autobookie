@@ -402,17 +402,17 @@ UserBet:
   app_local_put
 
   byte "MyBettingCount"
-  app_global_get
-  int 1
-  +
-  byte "MyBettingCount"
+    dup
+    app_global_get
+    int 1
+    +
   app_global_put
 
   load 0  //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
   bnz bet_team2
     // User voted for team1
     byte "Total1"
-      byte "Total1"
+      dup
       app_global_get
       gtxn 0 AssetAmount
       +
@@ -420,8 +420,7 @@ UserBet:
   
     int 0
     byte "MyTotal1"
-      int 0
-      byte "MyTotal1"
+      dup2
       app_local_get
       gtxn 0 AssetAmount
       +
@@ -432,7 +431,7 @@ UserBet:
   bet_team2:
     // User voted for team2
     byte "Total2"
-      byte "Total2"
+      dup
       app_global_get
       gtxn 0 AssetAmount
       +
@@ -440,8 +439,7 @@ UserBet:
 
     int 0
     byte "MyTotal2"
-      int 0
-      byte "MyTotal2"
+      dup2
       app_local_get
       gtxn 0 AssetAmount
       +
