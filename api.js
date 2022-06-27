@@ -188,7 +188,7 @@ class AutobookieCore {
     console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
     const params = await this.#getMinParams();
     const txn0 = await this.#makeUsdcTransferTxn(account.addr, escrowAddr, amount);
-    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet')]);
+    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet'), stringToByteArray(myTeam)]);
     await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
     console.log("Betting complete!");
   }

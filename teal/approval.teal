@@ -239,11 +239,6 @@ AdminSetWinner:
 
 
 UserNoOp:
-  txn NumAppArgs
-  int 1
-  ==
-  assert
-
   txna ApplicationArgs 0
   byte "bet" 
   ==
@@ -270,6 +265,11 @@ UserNoOp:
 
 
 UserBet:
+  txn NumAppArgs
+  int 2
+  ==
+  assert
+
   global LatestTimestamp
   byte "LimitDate"
   app_global_get
@@ -450,6 +450,11 @@ UserBet:
 
 
 UserClaim:
+  txn NumAppArgs
+  int 1
+  ==
+  assert
+  
   global GroupSize
   int 2
   ==
@@ -547,6 +552,11 @@ UserClaim:
 
 
 UserReclaim:
+  txn NumAppArgs
+  int 1
+  ==
+  assert
+
   global LatestTimestamp
   byte "EndDate"
   app_global_get

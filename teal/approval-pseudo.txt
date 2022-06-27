@@ -77,9 +77,8 @@ if txn.OnCompletion == avm.NoOp
 
 		return 1
 	else
-		assert txn.NumAppArgs == 1
-
 		if txn.ApplicationArgs[0] == "bet"
+			assert txn.NumAppArgs == 2
 			assert avm.LatestTimestamp <= global.LimitDate
 			assert local.MyBettingCount < 6
 			assert avm.GroupSize == 2
@@ -120,6 +119,7 @@ if txn.OnCompletion == avm.NoOp
 
 			return 1
 		elsif txn.ApplicationArgs[0] == "claim"
+			assert txn.NumAppArgs == 1
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Sender == global.Escrow
@@ -147,6 +147,7 @@ if txn.OnCompletion == avm.NoOp
 
 			return 1
 		elsif txn.ApplicationArgs[0] == "reclaim"
+			assert txn.NumAppArgs == 1
 			assert LatestTimestamp > global.EndDate
 			assert "" == global.Winner
 
