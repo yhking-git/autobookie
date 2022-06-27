@@ -12,7 +12,7 @@
 
 
 
-4. install nodejs
+4. install nodejs v16
 5. move to autobookie project directory
 	in terminal
 		npm install

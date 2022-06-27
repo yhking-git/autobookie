@@ -106,7 +106,7 @@ class AutobookieCore {
                   numberToByteArray(endDate),
                   numberToByteArray(this.fixedFee)          // fee 20 USDC
     ];
-    const response = await this.#createApp(5, 4, 1, 1, './teal/approval.teal', './teal/clear.teal', creatorAccount, args);
+    const response = await this.#createApp(5, 4, 9, 6, './teal/approval.teal', './teal/clear.teal', creatorAccount, args);
     console.log('Successfully deployed application: ');
     const appId = response['application-index'];
 
@@ -168,10 +168,12 @@ class AutobookieCore {
    * @param {string} mnemonic 
    * @param {number} appId 
    */
-  async readyBet(mnemonic, appId) {
+  async fakeUserPrepareBetting(mnemonic, appId) {
+    console.log("Prepare Betting starting...");
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
+    console.log("Prepare Betting complete!");
     return this.#sendSingleTxn(account.sk, txn);
   }
 
@@ -182,7 +184,7 @@ class AutobookieCore {
    * @param {string} myTeam
    * @param {string} escrowAddr
    */
-   async bet(mnemonic, appId, amount, myTeam, escrowAddr) {
+   async fakeUserBet(mnemonic, appId, amount, myTeam, escrowAddr) {
     console.log("Betting starting...");
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
@@ -201,7 +203,7 @@ class AutobookieCore {
    * @param {number} myTeamTotal
    * @param {number} otherTeamTotal
    */
-  async claim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
+  async fakeUserClaim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
     console.log("Claiming " + amount + " with account " + account.addr);

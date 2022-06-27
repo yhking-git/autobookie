@@ -126,15 +126,15 @@ if txn.OnCompletion == avm.NoOp
 			assert gtxn[0].Receiver == gtxn[1].Sender
 
 			if global.Winner == global.Team1
-				MyTeamTotal = global.Total1
+				TeamTotal = global.Total1
 				MyBet = local.MyTotal1
 			else
-				MyTeamTotal = global.Total2
+				TeamTotal = global.Total2
 				MyBet = local.MyTotal2
 			end
 
-			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal <= (global.Total1 + global.Total2) * MyBet
-			assert (gtxn[0].Amount + global.FixedFee) * MyTeamTotal + MyTeamTotal > (global.Total1 + global.Total2) * MyBet
+			assert (gtxn[0].Amount + global.FixedFee) * TeamTotal <= (global.Total1 + global.Total2) * MyBet
+			assert (gtxn[0].Amount + global.FixedFee) * TeamTotal + TeamTotal > (global.Total1 + global.Total2) * MyBet
 
 			local.MyBet0 = 0
 			local.MyBet1 = 0

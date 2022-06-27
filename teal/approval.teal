@@ -6,29 +6,29 @@
 // LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
 // EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
 // FixedFee   # integer: the amount of fixed fee // ver 1.1
-// Team1Total # integer: the total amount wagered on team 1
-// Team2Total # integer: the total amount wagered on team 2
+// Total1     # integer: the total amount wagered on team 1
+// Total2     # integer: the total amount wagered on team 2
 // Team1      # string:  the name of the 1st team in the match(eg "Los Angeles Lakers")
 // Team2      # string:  the name of the 2nd team in the match(eg "golden State Warriors")
 // Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
 // Winner     # string:  the winning team
 
 // LOCAL STATE
-// local.MyBettingCount	# the number of bettings
-// local.MyTeam0		# name of team I bet
-// local.MyBet0			# amount of my betting on team
-// local.MyTeam1
-// local.MyBet1
-// local.MyTeam2
-// local.MyBet2
-// local.MyTeam3
-// local.MyBet3
-// local.MyTeam4
-// local.MyBet4
-// local.MyTeam5
-// local.MyBet5
-// local.MyTotal1   # total amount of my betting on team1
-// local.MyTotal2   # total amount of my betting on team2
+// local.MyBettingCount # integer: the number of bettings
+// local.MyBet0         # integer: amount of my betting on team
+// local.MyBet1         # integer
+// local.MyBet2         # integer
+// local.MyBet3         # integer
+// local.MyBet4         # integer
+// local.MyBet5         # integer
+// local.MyTotal1       # integer: total amount of my betting on team1
+// local.MyTotal2       # integer: total amount of my betting on team2
+// local.MyTeam0        # string:  name of team I bet
+// local.MyTeam1        # string
+// local.MyTeam2        # string
+// local.MyTeam3        # string
+// local.MyTeam4        # string
+// local.MyTeam5        # string
 
 
 txn ApplicationID
@@ -110,11 +110,11 @@ OnAppInitialize:
   byte ""
   app_global_put
 
-  byte "Team1Total"
+  byte "Total1"
   int 0
   app_global_put
 
-  byte "Team2Total"
+  byte "Total2"
   int 0
   app_global_put
 
@@ -309,12 +309,15 @@ UserBet:
   byte "Team1"
   app_global_get
   ==
+
   txna ApplicationArgs 1
   byte "Team2"
   app_global_get
   ==
+  
   dup
   store 0 //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
+  
   ||
   assert
 
@@ -349,6 +352,7 @@ UserBet:
   bnz count4
 
   load 1
+  int 5
   ==
   bnz count5
 
@@ -400,12 +404,13 @@ UserBet:
   gtxn 0 AssetAmount
   app_local_put
 
+  int 0
   byte "MyBettingCount"
-    dup
-    app_global_get
+    dup2
+    app_local_get
     int 1
     +
-  app_global_put
+  app_local_put
 
   load 0  //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
   bnz bet_team2
@@ -477,17 +482,17 @@ UserClaim:
   ==
   assert
 
-  // amount + fee == MyBet / MyTeamTotal * (Team1Total + Team2Total)
-  // (amount + fee) * MyTeamTotal == (Team1Total + Team2Total) * MyBet
+  // amount + fee == MyBet / TeamTotal * (Total1 + Total2)
+  // (amount + fee) * TeamTotal == (Total1 + Total2) * MyBet
   //
   // Because this can result in non-integer amounts, we want users to request
   // the maximum amount possible without claiming more than they're entitled to.
   // Which means we have to check these two assertions:
   //
-  // (amount + fee) * MyTeamTotal <= (Team1Total + Team2Total) * MyBet
-  // (amount + fee + 1) * MyTeamTotal > (Team1Total + Team2Total) * MyBet
+  // (amount + fee) * TeamTotal <= (Total1 + Total2) * MyBet
+  // (amount + fee + 1) * TeamTotal > (Total1 + Total2) * MyBet
   // which equates to:
-  // (amount + fee) * MyTeamTotal + MyTeamTotal > (Team1Total + Team2Total) * MyBet
+  // (amount + fee) * TeamTotal + TeamTotal > (Total1 + Total2) * MyBet
 
   byte "Winner"
   app_global_get
@@ -497,7 +502,7 @@ UserClaim:
   bnz winner_is_team2
     byte "Total1"
     app_global_get
-    store 0 // MyTeamTotal
+    store 0 // TeamTotal
 
     int 0
     byte "MyTotal1"
@@ -508,39 +513,39 @@ UserClaim:
   winner_is_team2:
     byte "Total2"
     app_global_get
-    store 0 // MyTeamTotal
+    store 0 // TeamTotal
 
     int 0
     byte "MyTotal2"
     app_local_get
     store 3 // MyBet
   winner_end:
-  store 0 // MyTeamTotal
+  load 0 // TeamTotal
     gtxn 0 AssetAmount
     byte "FixedFee"
     app_global_get
     +
   *
-  store 1 // (amount + fee) * MyTeamTotal
+  store 1 // (amount + fee) * TeamTotal
 
-  byte "Team1Total"
+  byte "Total1"
   app_global_get
-  byte "Team2Total"
+  byte "Total2"
   app_global_get
   +
   load 3 // MyBet
   *
-  store 2 // (Team1Total + Team2Total) * MyBet
+  store 2 // (Total1 + Total2) * MyBet
 
-  load 1 // (amount + fee) * MyTeamTotal
-  load 2 // (Team1Total + Team2Total) * MyBet
+  load 1 // (amount + fee) * TeamTotal
+  load 2 // (Total1 + Total2) * MyBet
   <=
   assert
 
-  load 1 // (amount + fee) * MyTeamTotal
-  load 0 // MyTeamTotal
+  load 1 // (amount + fee) * TeamTotal
+  load 0 // TeamTotal
   +
-  load 2 // (Team1Total + Team2Total) * MyBet
+  load 2 // (Total1 + Total2) * MyBet
   >
   assert
 
