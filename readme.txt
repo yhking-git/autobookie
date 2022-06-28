@@ -13,9 +13,11 @@
 
 
 4. install nodejs v16
-5. move to autobookie project directory
-	in terminal
-		npm install
-	to test code run below
-		npm run test
+	npm install
 
+5. to test backend
+	cd src
+	node test-backend
+
+6. to test frontend
+	npm start

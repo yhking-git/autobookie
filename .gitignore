@@ -1,4 +1,8 @@
 .DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 .idea/
 .vscode/*
@@ -7,10 +11,16 @@
 
 # npm
 node_modules/
+/.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Testing files
 *.feature
 temp
+/coverage
 
 # Environment information
 examples/.env
@@ -23,6 +33,7 @@ tests/browser/bundle.*
 dist/
 docs/
 built/
+/build
 
 # Caches
 .eslintcache
