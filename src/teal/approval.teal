@@ -1,0 +1,653 @@
+#pragma version 4
+
+
+// ver 1.2
+// GLOBAL STATE
+// LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
+// EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team
+// FixedFee   # integer: the amount of fixed fee // ver 1.1
+// Total1     # integer: the total amount wagered on team 1
+// Total2     # integer: the total amount wagered on team 2
+// Team1      # string:  the name of the 1st team in the match(eg "Los Angeles Lakers")
+// Team2      # string:  the name of the 2nd team in the match(eg "golden State Warriors")
+// Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
+// Winner     # string:  the winning team
+
+// LOCAL STATE
+// local.MyBettingCount # integer: the number of bettings
+// local.MyBet0         # integer: amount of my betting on team
+// local.MyBet1         # integer
+// local.MyBet2         # integer
+// local.MyBet3         # integer
+// local.MyBet4         # integer
+// local.MyBet5         # integer
+// local.MyTotal1       # integer: total amount of my betting on team1
+// local.MyTotal2       # integer: total amount of my betting on team2
+// local.MyTeam0        # string:  name of team I bet
+// local.MyTeam1        # string
+// local.MyTeam2        # string
+// local.MyTeam3        # string
+// local.MyTeam4        # string
+// local.MyTeam5        # string
+
+
+txn ApplicationID
+int 0
+==
+bz handle_main
+callsub OnAppInitialize
+
+handle_main:
+  txn OnCompletion
+  int UpdateApplication
+  ==
+  bnz handle_update
+
+  txn OnCompletion
+  int OptIn
+  ==
+  bnz handle_optin
+
+  txn OnCompletion
+  int NoOp
+  ==
+  bnz handle_noop
+
+  txn OnCompletion
+  int CloseOut
+  ==
+  bnz handle_closeout
+
+  txn OnCompletion
+  int DeleteApplication
+  ==
+  bnz handle_deleteapp
+
+  err
+
+handle_update:
+  callsub OnCompletionUpdate
+handle_optin:
+  callsub OnCompletionOptIn
+handle_noop:
+  callsub OnCompletionNoOp
+handle_closeout:
+  callsub OnCompletionCloseOut
+handle_deleteapp:
+  callsub OnCompletionDeleteApplication
+
+
+OnAppInitialize:
+  txn NumAppArgs
+  int 5
+  ==
+  assert
+
+  byte "Team1"
+  txna ApplicationArgs 0
+  app_global_put
+
+  byte "Team2"
+  txna ApplicationArgs 1
+  app_global_put
+
+  byte "LimitDate"
+  txna ApplicationArgs 2
+  btoi
+  app_global_put
+
+  byte "EndDate"
+  txna ApplicationArgs 3
+  btoi
+  app_global_put
+
+  byte "FixedFee"
+  txna ApplicationArgs 4
+  btoi
+  app_global_put
+
+  byte "Winner"
+  byte ""
+  app_global_put
+
+  byte "Total1"
+  int 0
+  app_global_put
+
+  byte "Total2"
+  int 0
+  app_global_put
+
+  int 1
+  return
+
+
+OnCompletionUpdate:
+  txn Sender
+  global CreatorAddress
+  ==
+  return
+
+
+OnCompletionOptIn:
+  global LatestTimestamp
+  byte "LimitDate"
+  app_global_get
+  <=
+  assert
+
+  txn NumApplications
+  int 0
+  ==
+  assert
+
+  int 0
+  byte "MyBettingCount"
+  int 0
+  app_local_put
+
+  int 1
+  return
+
+
+OnCompletionCloseOut:
+  int 1
+  return
+
+
+OnCompletionDeleteApplication:
+  txn Sender
+  global CreatorAddress
+  ==
+  return
+
+
+OnCompletionNoOp:
+  txn Sender
+  global CreatorAddress
+  ==
+  bz user_noop
+  callsub AdminNoOp
+
+  user_noop:
+    callsub UserNoOp
+
+
+AdminNoOp:
+  txn NumAppArgs
+  int 2
+  ==
+  assert
+
+  txna ApplicationArgs 0
+  byte "escrow"
+  ==
+  bnz admin_escrow
+
+  txna ApplicationArgs 0
+  byte "winner"
+  ==
+  bnz admin_winner
+
+  err
+
+  admin_escrow:
+    callsub AdminSetEscrow
+  admin_winner:
+    callsub AdminSetWinner
+
+
+AdminSetEscrow:
+  byte "Escrow"
+  txna ApplicationArgs 1
+  app_global_put
+
+  int 1
+  return
+
+
+AdminSetWinner:
+  global LatestTimestamp
+  byte "LimitDate"
+  app_global_get
+  >
+  assert
+
+  global LatestTimestamp
+  byte "EndDate"
+  app_global_get
+  <=
+  assert
+
+  txna ApplicationArgs 1
+  byte "Team1"
+  app_global_get
+  ==
+  txna ApplicationArgs 1
+  byte "Team2"
+  app_global_get
+  ==
+  ||
+  assert
+
+  byte "Winner"
+  txna ApplicationArgs 1
+  app_global_put
+
+  int 1
+  return
+
+
+UserNoOp:
+  txna ApplicationArgs 0
+  byte "bet" 
+  ==
+  bnz user_bet
+
+  txna ApplicationArgs 0
+  byte "claim" 
+  ==
+  bnz user_claim
+
+  txna ApplicationArgs 0
+  byte "reclaim" 
+  ==
+  bnz user_reclaim
+
+  err
+
+  user_bet:
+    callsub UserBet
+  user_claim:
+    callsub UserClaim
+  user_reclaim:
+    callsub UserReclaim
+
+
+UserBet:
+  txn NumAppArgs
+  int 2
+  ==
+  assert
+
+  global LatestTimestamp
+  byte "LimitDate"
+  app_global_get
+  <=
+  assert
+
+  int 0
+  byte "MyBettingCount"
+  app_local_get
+  int 6
+  <
+  assert
+
+  global GroupSize
+  int 2
+  ==
+  assert
+
+  gtxn 0 TypeEnum
+  int axfer
+  ==
+  assert
+
+  gtxn 0 AssetReceiver
+  byte "Escrow"
+  app_global_get
+  ==
+  assert
+
+  gtxn 0 AssetAmount
+  byte "FixedFee"
+  app_global_get
+  >
+  assert
+
+  txna ApplicationArgs 1
+  byte "Team1"
+  app_global_get
+  ==
+
+  txna ApplicationArgs 1
+  byte "Team2"
+  app_global_get
+  ==
+  
+  dup
+  store 0 //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
+  
+  ||
+  assert
+
+  int 0
+  byte "MyBettingCount"
+  app_local_get
+  store 1
+
+  load 1
+  int 0
+  ==
+  bnz count0
+
+  load 1
+  int 1
+  ==
+  bnz count1
+
+  load 1
+  int 2
+  ==
+  bnz count2
+
+  load 1
+  int 3
+  ==
+  bnz count3
+
+  load 1
+  int 4
+  ==
+  bnz count4
+
+  load 1
+  int 5
+  ==
+  bnz count5
+
+  err
+
+  count0:
+    byte "MyTeam0"
+    store 2
+    byte "MyBet0"
+    store 3
+    b count_end
+  count1:
+    byte "MyTeam1"
+    store 2
+    byte "MyBet1"
+    store 3
+    b count_end
+  count2:
+    byte "MyTeam2"
+    store 2
+    byte "MyBet2"
+    store 3
+    b count_end
+  count3:
+    byte "MyTeam3"
+    store 2
+    byte "MyBet3"
+    store 3
+    b count_end
+  count4:
+    byte "MyTeam4"
+    store 2
+    byte "MyBet4"
+    store 3
+    b count_end
+  count5:
+    byte "MyTeam5"
+    store 2
+    byte "MyBet5"
+    store 3
+  count_end:
+  int 0
+  load 2 // "MyTeam0"|"MyTeam1"|"MyTeam2"|"MyTeam3"|"MyTeam4"|"MyTeam5"
+  txna ApplicationArgs 1
+  app_local_put
+
+  int 0 
+  load 3 // "MyBet0"|"MyBet1"|"MyBet2"|"MyBet3"|"MyBet4"|"MyBet5"
+  gtxn 0 AssetAmount
+  app_local_put
+
+  int 0
+  byte "MyBettingCount"
+    dup2
+    app_local_get
+    int 1
+    +
+  app_local_put
+
+  load 0  //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
+  bnz bet_team2
+    // User voted for team1
+    byte "Total1"
+      dup
+      app_global_get
+      gtxn 0 AssetAmount
+      +
+    app_global_put
+  
+    int 0
+    byte "MyTotal1"
+      dup2
+      app_local_get
+      gtxn 0 AssetAmount
+      +
+    app_local_put
+
+    b bet_end
+
+  bet_team2:
+    // User voted for team2
+    byte "Total2"
+      dup
+      app_global_get
+      gtxn 0 AssetAmount
+      +
+    app_global_put
+
+    int 0
+    byte "MyTotal2"
+      dup2
+      app_local_get
+      gtxn 0 AssetAmount
+      +
+    app_local_put
+
+  bet_end:
+    int 1
+    return
+
+
+UserClaim:
+  txn NumAppArgs
+  int 1
+  ==
+  assert
+  
+  global GroupSize
+  int 2
+  ==
+  assert
+
+  gtxn 0 TypeEnum
+  int axfer
+  ==
+  assert
+
+  gtxn 0 Sender
+  byte "Escrow"
+  app_global_get
+  ==
+  assert
+
+  // Assert the reciever is also the one calling app...
+  gtxn 0 AssetReceiver
+  gtxn 1 Sender
+  ==
+  assert
+
+  // amount + fee == MyBet / TeamTotal * (Total1 + Total2)
+  // (amount + fee) * TeamTotal == (Total1 + Total2) * MyBet
+  //
+  // Because this can result in non-integer amounts, we want users to request
+  // the maximum amount possible without claiming more than they're entitled to.
+  // Which means we have to check these two assertions:
+  //
+  // (amount + fee) * TeamTotal <= (Total1 + Total2) * MyBet
+  // (amount + fee + 1) * TeamTotal > (Total1 + Total2) * MyBet
+  // which equates to:
+  // (amount + fee) * TeamTotal + TeamTotal > (Total1 + Total2) * MyBet
+
+  byte "Winner"
+  app_global_get
+  byte "Team2"
+  app_global_get
+  ==
+  bnz winner_is_team2
+    byte "Total1"
+    app_global_get
+    store 0 // TeamTotal
+
+    int 0
+    byte "MyTotal1"
+    app_local_get
+    store 3 // MyBet
+
+    b winner_end
+  winner_is_team2:
+    byte "Total2"
+    app_global_get
+    store 0 // TeamTotal
+
+    int 0
+    byte "MyTotal2"
+    app_local_get
+    store 3 // MyBet
+  winner_end:
+  load 0 // TeamTotal
+    gtxn 0 AssetAmount
+    byte "FixedFee"
+    app_global_get
+    +
+  *
+  store 1 // (amount + fee) * TeamTotal
+
+  byte "Total1"
+  app_global_get
+  byte "Total2"
+  app_global_get
+  +
+  load 3 // MyBet
+  *
+  store 2 // (Total1 + Total2) * MyBet
+
+  load 1 // (amount + fee) * TeamTotal
+  load 2 // (Total1 + Total2) * MyBet
+  <=
+  assert
+
+  load 1 // (amount + fee) * TeamTotal
+  load 0 // TeamTotal
+  +
+  load 2 // (Total1 + Total2) * MyBet
+  >
+  assert
+
+  // Bet has been claimed, reduce to 0 so that user cannot claim twice
+  callsub UserResetBet
+
+  int 1
+  return
+
+
+UserReclaim:
+  txn NumAppArgs
+  int 1
+  ==
+  assert
+
+  global LatestTimestamp
+  byte "EndDate"
+  app_global_get
+  >
+  assert
+
+  byte ""
+  byte "Winner"
+  app_global_get
+  ==
+  assert
+
+  global GroupSize
+  int 2
+  ==
+  assert
+
+  gtxn 0 TypeEnum
+  int axfer
+  ==
+  assert
+
+  gtxn 0 AssetSender
+  byte "Escrow"
+  app_global_get
+  ==
+  assert
+
+  gtxn 0 AssetReceiver
+  gtxn 1 Sender
+  ==
+  assert
+
+  gtxn 0 AssetAmount
+  byte "FixedFee"
+  app_global_get
+  +
+
+  int 0
+  byte "MyTotal1"
+  app_local_get
+  int 0
+  byte "MyTotal2"
+  app_local_get
+  +
+
+  ==
+  assert
+
+  callsub UserResetBet
+
+  int 1
+  return
+
+
+UserResetBet:
+  int 0
+  byte "MyBet0"
+  int 0
+  app_local_put
+  int 0
+  byte "MyBet1"
+  int 0
+  app_local_put
+  int 0
+  byte "MyBet2"
+  int 0
+  app_local_put
+  int 0
+  byte "MyBet3"
+  int 0
+  app_local_put
+  int 0
+  byte "MyBet4"
+  int 0
+  app_local_put
+  int 0
+  byte "MyBet5"
+  int 0
+  app_local_put
+  int 0
+  byte "MyTotal1"
+  int 0
+  app_local_put
+  int 0
+  byte "MyTotal2"
+  int 0
+  app_local_put
+  retsub
