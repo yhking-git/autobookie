@@ -50,7 +50,7 @@ const util = require('./util');
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
   await core.fakeUserBet(USER2_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
-  await core.fakeUserBet(USER2_MNEMONIC, dapp.appId, 200*1000, 'team2', dapp.escrow.addr);
+  // await core.fakeUserBet(USER2_MNEMONIC, dapp.appId, 200*1000, 'team2', dapp.escrow.addr);
 
   // print assets info of users after betting
   await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
