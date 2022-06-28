@@ -59,7 +59,7 @@ class AutobookieCore {
    * @param {string} addr 
    * @param {number} assetId 
    */
-   async getAccountAssetInfo(addr, assetId) {
+  async getAccountAssetInfo(addr, assetId) {
     const accountInfo = await this.client.accountInformation(addr).do();
     let assetInfo = {};
     assetInfo['address'] = addr;
@@ -182,7 +182,7 @@ class AutobookieCore {
    * @param {string} myTeam
    * @param {string} escrowAddr
    */
-   async fakeUserBet(mnemonic, appId, amount, myTeam, escrowAddr) {
+  async fakeUserBet(mnemonic, appId, amount, myTeam, escrowAddr) {
     console.log("Betting starting...");
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
@@ -458,7 +458,7 @@ class AlgoSignerWrapper {
    * @param {number} myTeamTotal
    * @param {number} otherTeamTotal
    */
-   async userClaim(mnemonic, appId, escrowAddr, escrowSk, myBet, myTeamTotal, otherTeamTotal) {
+  async userClaim(mnemonic, appId, escrowAddr, escrowSk, myBet, myTeamTotal, otherTeamTotal) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
     console.log("Claiming " + amount + " with account " + account.addr);
@@ -543,15 +543,15 @@ class AlgoSignerWrapper {
    * @returns 
    */
   async #makeUsdcTransferTxn(from, to, amount, closeAtFrom=false) {
-  return algosdk.makeAssetTransferTxnWithSuggestedParams(
-    from,
-    to,
-    closeAtFrom ? from : undefined,
-    undefined,
-    amount,
-    undefined,
-    this.usdcAssetId,
-    await this.#getMinParams())
+    return algosdk.makeAssetTransferTxnWithSuggestedParams(
+      from,
+      to,
+      closeAtFrom ? from : undefined,
+      undefined,
+      amount,
+      undefined,
+      this.usdcAssetId,
+      await this.#getMinParams());
   }
 }
 
