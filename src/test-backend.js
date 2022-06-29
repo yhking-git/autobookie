@@ -33,13 +33,15 @@ const util = require('./util');
   await core.getAccountAssetInfo(ESCROW_ADDRESS, api.USDC_ASSET_ID_TESTNET);
   
   // 2. admin creates dapp
-  const limitDate = Math.round(Date.now()/1000) + 2*60; // 2 minutes from now
-  const endDate = Math.round(Date.now()/1000) + 5*60;  // 5 minutes from now
+  const limitDate = Math.round(Date.now()/1000) + 5*60;
+  const endDate = Math.round(Date.now()/1000) + 10*60;
   let dapp = await core.createDapp(ADMIN_MNEMONIC, ESCROW_MNEMONIC, "team1", "team2", limitDate, endDate);
 
-  // 3. users prepare betting
-  await core.fakeUserPrepareBetting(USER1_MNEMONIC, dapp.appId);
-  await core.fakeUserPrepareBetting(USER2_MNEMONIC, dapp.appId);
+  // 3. users optin dapp
+  await core.fakeUserOptinApp(USER1_MNEMONIC, dapp.appId);
+  // await core.fakeUserOptinApp(USER2_MNEMONIC, dapp.appId);
+
+  util.inputString("wait for user2 optin app");
 
   // print assets info of users after betting
   await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
@@ -49,18 +51,22 @@ const util = require('./util');
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
-  await core.fakeUserBet(USER2_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
+  await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
   // await core.fakeUserBet(USER2_MNEMONIC, dapp.appId, 200*1000, 'team2', dapp.escrow.addr);
 
   // print assets info of users after betting
   await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
   await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
 
+  util.inputString("wait for user2 bet");
+
   // 5. admin sets winner to team2
-  await core.setWinner(ADMIN_MNEMONIC, dapp, 'team2');
+  await core.setWinner(ADMIN_MNEMONIC, dapp.appId, 'team2', dapp.limitDate);
 
   // 6. user3 claim his winnings
-  await core.fakeUserClaim(USER2_MNEMONIC, dapp, 200*1000, 200*1000, 800*1000);
+  // await core.fakeUserClaim(USER2_MNEMONIC, dapp, 200*1000, 200*1000, 800*1000);
+
+  util.inputString("wait for user2 claim");
 
   // print assets info of users after betting
   await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);

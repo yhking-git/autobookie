@@ -146,74 +146,25 @@ class AutobookieCore {
 
   /**
    * @param {string} mnemonic 
-   * @param {AutobookieDapp} dapp 
+   * @param {number} appId 
    * @param {string} winner 
+   * @param {number} limitDate 
    */
-  async setWinner(mnemonic, dapp, winner) {
-    console.log(`Updating application ${dapp.appId} with winner ${winner}`);
+  async setWinner(mnemonic, appId, winner, limitDate=undefined) {
+    console.log(`Updating application ${appId} with winner ${winner}`);
     const now =  Math.round(Date.now()/1000);
-    const seconds = dapp.limitDate - now;
-    if (seconds > 0) {
-      await sleep(seconds + 10);
+
+    if (limitDate) {
+      const seconds = limitDate - now;
+      if (seconds > 0) {
+        await sleep(seconds + 10);
+      }
     }
+  
     const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const response = await this.#callAppNoOp(account, dapp.appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
+    const response = await this.#callAppNoOp(account, appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
     console.log("Successfully update application:");
     console.log(response, '\n\n');
-  }
-
-  /**
-   * @param {string} mnemonic 
-   * @param {number} appId 
-   */
-  async fakeUserPrepareBetting(mnemonic, appId) {
-    console.log("Prepare Betting starting...");
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const params = await this.#getMinParams();
-    const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
-    console.log("Prepare Betting complete!");
-    return this.#sendSingleTxn(account.sk, txn);
-  }
-
-  /**
-   * @param {string} mnemonic
-   * @param {number} appId
-   * @param {number} amount
-   * @param {string} myTeam
-   * @param {string} escrowAddr
-   */
-  async fakeUserBet(mnemonic, appId, amount, myTeam, escrowAddr) {
-    console.log("Betting starting...");
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
-    console.log(`    ${account.addr} is betting on ${myTeam} ${amount} USDC`);
-    const params = await this.#getMinParams();
-    const txn0 = await this.#makeUsdcTransferTxn(account.addr, escrowAddr, amount);
-    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet'), stringToByteArray(myTeam)]);
-    await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
-    console.log("Betting complete!");
-  }
-
-  /**
-   * Claim winnings for a given user.
-   * @param {string} mnemonic
-   * @param {AutobookieDapp} dapp
-   * @param {number} myBet
-   * @param {number} myTeamTotal
-   * @param {number} otherTeamTotal
-   */
-  async fakeUserClaim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
-    console.log("Claiming " + amount + " with account " + account.addr);
-    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
-    const params = await this.#getMinParams();
-    const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
-    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
-    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
-    console.log("Claim complete!");
   }
 
   /**
@@ -255,6 +206,59 @@ class AutobookieCore {
     await algosdk.waitForConfirmation(this.client, txId, 20);
     console.log("Deleted appId: ", appId);
     console.log('All done!');
+  }
+
+  /**
+   * @param {string} mnemonic 
+   * @param {number} appId 
+   */
+  async fakeUserOptinApp(mnemonic, appId) {
+    console.log("Prepare Betting starting...");
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const params = await this.#getMinParams();
+    const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
+    console.log("Prepare Betting complete!");
+    return this.#sendSingleTxn(account.sk, txn);
+  }
+
+  /**
+   * @param {string} mnemonic
+   * @param {number} appId
+   * @param {number} amount
+   * @param {string} myTeam
+   * @param {string} escrowAddr
+   */
+  async fakeUserBet(mnemonic, appId, amount, myTeam, escrowAddr) {
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    console.log(`${account.addr} is betting on ${myTeam} ${amount} USDC`);
+    const params = await this.#getMinParams();
+    const txn0 = await this.#makeUsdcTransferTxn(account.addr, escrowAddr, amount);
+    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet'), stringToByteArray(myTeam)]);
+    await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
+    console.log("Betting complete!");
+  }
+
+  /**
+   * Claim winnings for a given user.
+   * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp
+   * @param {number} myBet
+   * @param {number} myTeamTotal
+   * @param {number} otherTeamTotal
+   */
+  async fakeUserClaim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
+    console.log("Claiming " + amount + " with account " + account.addr);
+    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    const params = await this.#getMinParams();
+    const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
+    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
+    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
+    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    console.log("Claim complete!");
   }
 
   ////////// private methods //////////

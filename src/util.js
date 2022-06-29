@@ -1,6 +1,19 @@
-
+const prompt = require("prompt-sync")({ sigint: true });
 
 module.exports = {
+  /**
+   * @param {string} ask 
+   */
+   inputString: function(ask=undefined) {
+    let s;
+    if (process.stdin.isTTY) {
+      ask ||= "Input string";
+      s = prompt(ask + ', press [ENTER] to continue ...');
+    }
+
+    return s;
+  },
+
   /**
    * @param {string} s 
    */
