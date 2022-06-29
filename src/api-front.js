@@ -50,7 +50,7 @@ export class AlgoSignerWrapper {
     const txn1 = algosdk.makeApplicationNoOpTxn(address, params, appId, [new TextEncoder().encode('bet'), new TextEncoder().encode(myTeam)]);
     console.log(`    txn0.txId: ${txn0.txID()}`);
     console.log(`    txn1.txId: ${txn1.txID()}`);
-    await this.#sendDoubleTxnsSame(txn0, txn1);
+    await this.#sendDoubleTxnsWallet(txn0, txn1);
     console.log("Betting complete!");
   }
 
@@ -71,10 +71,33 @@ export class AlgoSignerWrapper {
     const txn0 = await this.#makeUsdcTransferTxn(ESCROW_ADDRESS, address, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(address, params, appId, [new TextEncoder().encode('claim')]);
     const escrowAccount = algosdk.mnemonicToSecretKey(ESCROW_MNEMONIC);
-    await this.#sendDoubleTxns(txn0, txn1, escrowAccount.sk);
+    await this.#sendDoubleTxns(escrowAccount.sk, txn0, undefined, txn1);
     await this.getAccountAssetInfo(ESCROW_ADDRESS, this.usdcAssetId);
     await this.getAccountAssetInfo(address, this.usdcAssetId);
     console.log("Claim complete!");
+  }
+
+  /**
+   * Get all accounts registered in this AlgoSigner wallet
+   * @returns 
+   */
+  async getAccounts() {
+    const accounts = await AlgoSigner.accounts({ ledger: 'TestNet' });
+    console.log("accounts" + accounts);
+    return accounts;
+  }
+
+  /**
+   * @param {number} appId
+   */
+  async getAppInfo(appId)  {
+    const appInfo = await AlgoSigner.indexer({
+      ledger: this.ledgerName,
+      path: `/v2/assets/${appId}`,
+    });
+
+    console.log("appInfo" + appInfo);
+    return appInfo;
   }
 
   /**
@@ -161,15 +184,9 @@ export class AlgoSignerWrapper {
    * @param {Uint8Array} sk0
    * @param {Uint8Array} sk1
    */
-  async #sendDoubleTxnsSame(txn0, txn1) {
+  async #sendDoubleTxnsWallet(txn0, txn1) {
     console.log("#sendDoubleTxnsSame - ");
-    console.log(`    txn0.txId: ${txn0.txID()}`);
-    console.log(`    txn1.txId: ${txn1.txID()}`);
-
     algosdk.assignGroupID([txn0, txn1]);
-
-    console.log(`    txn0.txId: ${txn0.txID()}`);
-    console.log(`    txn1.txId: ${txn1.txID()}`);
 
     let binaryTxs = [txn0.toByte(), txn1.toByte()];
     let base64Txs = binaryTxs.map((binary) => AlgoSigner.encoding.msgpackToBase64(binary));
@@ -185,6 +202,7 @@ export class AlgoSignerWrapper {
   
     const signedTxn0Binary = AlgoSigner.encoding.base64ToMsgpack(signedTxs[0].blob);
     const signedTxn1Binary = AlgoSigner.encoding.base64ToMsgpack(signedTxs[1].blob);
+
     let combinedBinaryTxns = new Uint8Array(signedTxn0Binary.byteLength + signedTxn1Binary.byteLength);
     combinedBinaryTxns.set(signedTxn0Binary, 0);
     combinedBinaryTxns.set(signedTxn1Binary, signedTxn0Binary.byteLength);
@@ -199,53 +217,33 @@ export class AlgoSignerWrapper {
   }
 
   /**
-   * @param {algosdk.Transaction} txn0
-   * @param {algosdk.Transaction} txn1
    * @param {Uint8Array} sk0
+   * @param {algosdk.Transaction} txn0
    * @param {Uint8Array} sk1
+   * @param {algosdk.Transaction} txn1
    */
-   async #sendDoubleTxns(txn0, txn1, sk0=undefined, sk1=undefined) {
+   async #sendDoubleTxns(sk0, txn0, sk1, txn1) {
     console.log("#sendDoubleTxns - ");
-    console.log(`    txn0.txId: ${txn0.txID()}`);
-    console.log(`    txn1.txId: ${txn1.txID()}`);
-    console.log(`    sk0: ${sk0}`);
-    console.log(`    sk1: ${sk1}`);
-
     algosdk.assignGroupID([txn0, txn1]);
+    let binaryTxs = [txn0.toByte(), txn1.toByte()];
+    let base64Txs = binaryTxs.map((binary) => AlgoSigner.encoding.msgpackToBase64(binary));
 
-    console.log(`    txn0.txId: ${txn0.txID()}`);
-    console.log(`    txn1.txId: ${txn1.txID()}`);
+    let signedTxs = await AlgoSigner.signTxn([
+      {
+        txn: base64Txs[0],
+        signers: sk0 ? [] : undefined,
+      },
+      {
+        txn: base64Txs[1],
+        signers: sk1 ? [] : undefined,
+      },
+    ]);
 
-    let signedTxn0;
-    if (sk0) {
-      console.log(` sk0 txn0.txId: ${txn0.txID()}`);
-      signedTxn0 = txn0.signTxn(sk0);
-    } else {
-      console.log(`     txn0.txId: ${txn0.txID()}`);
-      signedTxn0 = AlgoSigner.encoding.base64ToMsgpack((await this.#signSingleTxn(txn0)).blob);
-    }
+    // The AlgoSigner.signTxn() response would look like '[{ txID, blob }, null]'
+    let signedTxn0Binary = sk0 ? txn0.signTxn(sk0) : AlgoSigner.encoding.base64ToMsgpack(signedTxs[0].blob);
+    let signedTxn1Binary = sk1 ? txn1.signTxn(sk1) : AlgoSigner.encoding.base64ToMsgpack(signedTxs[1].blob);
 
-    let signedTxn1;
-    if (sk1) {
-      console.log(` sk1 txn1.txId: ${txn1.txID()}`);
-      signedTxn1 = txn1.signTxn(sk1);
-    } else {
-      console.log(`     txn1.txId: ${txn1.txID()}`);
-      signedTxn1 = AlgoSigner.encoding.base64ToMsgpack((await this.#signSingleTxn(txn1)).blob);
-    }
-
-    console.log(`    signedTxn0.byteLength: ${signedTxn0.byteLength}`);
-    console.log(`    signedTxn1.byteLength: ${signedTxn1.byteLength}`);
-
-    let combinedBinaryTxns = new Uint8Array(signedTxn0.byteLength + signedTxn1.byteLength);
-    combinedBinaryTxns.set(signedTxn0, 0);
-    combinedBinaryTxns.set(signedTxn1, signedTxn0.byteLength);
-    let combinedBase64Txns = AlgoSigner.encoding.msgpackToBase64(combinedBinaryTxns);
-
-    await AlgoSigner.send({
-      ledger: this.ledgerName,
-      tx: combinedBase64Txns,
-    });
+    await this.client.sendRawTransaction([signedTxn0Binary, signedTxn1Binary]).do();
     console.log("#sendDoubleTxns - complete!");
   }
 

@@ -29,10 +29,11 @@ function App() {
   }
 
   const onBetClick = async () => {
-    console.log(`onBetClick - address: ${address}, appId: ${appId}, team: ${team}`);
-    console.log("wrapper: " + wrapper);
-    console.log("wrapper.ledgerName: " + wrapper.ledgerName);
     await wrapper.bet(address, appId, bettingAmount, team);
+  }
+
+  const onRefreshAppInfoClick = async () => {
+    const appInfo = wrapper.getAppInfo(appId);
   }
 
   const onClaimClick = async () => {
@@ -63,6 +64,7 @@ function App() {
         <input value={team} name="team" onChange={e => setTeam(e.target.value)} />
       </div>
       <button onClick={() => onBetClick()}>Bet</button>
+      <button onClick={() => onRefreshAppInfoClick()}>Refresh App Info</button>
       <div className="input-form">
         <label htmlFor="my-bet">My Bet:</label>
         <input value={myBet} name="team" onChange={e => setMyBet(parseInt(e.target.value))} />
