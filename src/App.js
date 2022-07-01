@@ -11,7 +11,7 @@ var wrapper;
 function App() {
   let optedIn = false;
   const [address, setAddress] = useState("WYEGVAN3QSZLGXMOMKEEVNXIJFVAQTTEBEQ2NRFDPCZ3HHJZKBHGOU7UPU");
-  const [appId, setAppId] = useState(97595298);
+  const [appId, setAppId] = useState(97892527);
   const [fixedFee, setFixedFee] = useState(100*1000);
   const [bettingAmount, setBettingAmount] = useState(200*1000);
   const [team, setTeam] = useState("team2");
@@ -33,7 +33,8 @@ function App() {
   }
 
   const onRefreshAppInfoClick = async () => {
-    const appInfo = wrapper.getAppInfo(appId);
+    const globalInfo = wrapper.getAppInfoGlobal(appId);
+    // const localInfo = wrapper.getAppInfoLocal(appId, address);
   }
 
   const onClaimClick = async () => {
@@ -63,8 +64,12 @@ function App() {
         <label htmlFor="team">Team:</label>
         <input value={team} name="team" onChange={e => setTeam(e.target.value)} />
       </div>
-      <button onClick={() => onBetClick()}>Bet</button>
-      <button onClick={() => onRefreshAppInfoClick()}>Refresh App Info</button>
+      <div>
+        <button onClick={() => onBetClick()}>Bet</button>
+      </div>
+      <div>
+        <button onClick={() => onRefreshAppInfoClick()}>Refresh App Info</button>
+      </div>
       <div className="input-form">
         <label htmlFor="my-bet">My Bet:</label>
         <input value={myBet} name="team" onChange={e => setMyBet(parseInt(e.target.value))} />

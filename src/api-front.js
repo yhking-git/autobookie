@@ -1,4 +1,5 @@
 const algosdk = require('algosdk');
+const { Base64 } = require('js-base64');
 
 export const USDC_ASSET_ID_TESTNET = 10458941;
 export const USDC_ASSET_ID_MAINNET = 31566704;
@@ -18,11 +19,19 @@ export class AlgoSignerWrapper {
    * @param {number} fixedFee 
    */
   constructor(ledgerName, usdcAssetId, fixedFee) {
-    AlgoSigner.connect();
-    this.ledgerName = ledgerName;
-    this.usdcAssetId = usdcAssetId;
-    this.fixedFee = fixedFee;
-    this.client = new algosdk.Algodv2( { 'X-API-Key': 'lxbjS3nPrM94Xt1KyNv7iIFlZTURUtX3Lc3WFLqc' }, 'https://testnet-algorand.api.purestake.io/ps2', '');
+    if (typeof AlgoSigner !== 'undefined') {
+      AlgoSigner.connect();
+      this.ledgerName = ledgerName;
+      this.usdcAssetId = usdcAssetId;
+      this.fixedFee = fixedFee;
+      this.xApiKey = 'lxbjS3nPrM94Xt1KyNv7iIFlZTURUtX3Lc3WFLqc';
+      this.clientBaseServer = 'https://testnet-algorand.api.purestake.io/ps2';
+      this.indexerBaseServer = 'https://testnet-algorand.api.purestake.io/idx2';
+      this.client = new algosdk.Algodv2( { 'X-API-Key': this.xApiKey }, this.clientBaseServer, '');
+      this.indexer = new algosdk.Indexer( { 'X-API-Key': this.xApiKey }, this.indexerBaseServer, '');
+    } else {
+      console.log('AlgoSigner is NOT installed.');
+    };
   }
 
   /**
@@ -83,21 +92,77 @@ export class AlgoSignerWrapper {
    */
   async getAccounts() {
     const accounts = await AlgoSigner.accounts({ ledger: 'TestNet' });
-    console.log("accounts" + accounts);
+    console.log(JSON.stringify(accounts, undefined, 2));
     return accounts;
   }
 
   /**
    * @param {number} appId
    */
-  async getAppInfo(appId)  {
-    const appInfo = await AlgoSigner.indexer({
-      ledger: this.ledgerName,
-      path: `/v2/assets/${appId}`,
-    });
+  async getAppInfoGlobal(appId)  {
+    const rawInfo = await this.indexer.lookupApplications(appId).do();
+    // console.log(JSON.stringify(rawInfo, undefined, 2));
 
-    console.log("appInfo" + appInfo);
-    return appInfo;
+    let info =  {};
+
+    if (rawInfo && rawInfo['application'] && rawInfo['application']['params']) {
+      const rawParams = rawInfo['application']['params'];
+      info.creator = rawParams.creator;
+      info.deleted = rawInfo.application.deleted;
+
+      if (rawParams['global-state']) {
+        info.globalState = {};
+
+        const rawGlobalState = rawParams['global-state'];
+        rawGlobalState.forEach(item => {
+          const key = Buffer.from(item['key'], 'base64').toString('ascii');
+          const val_str = Buffer.from(item['value']['bytes'], 'base64').toString('ascii');
+          const val_uint = item['value']['uint'];
+          switch (key) {
+            case "Team1":
+              info.globalState.Team1 = val_str;
+              break;
+            case "Team2":
+              info.globalState.Team2 = val_str;
+              break;
+            case "Winner":
+              info.globalState.Winner = val_str;
+              break;
+            case "LimitDate":
+            case "EndDate":
+            case "FixedFee":
+            case "Total1":
+            case "Total2":
+              info.globalState[key] = val_uint;
+              break;
+            case "Escrow": {
+              const bytes = Base64.toUint8Array(item['value']['bytes']);
+              const addr = algosdk.encodeAddress(bytes);
+              info.globalState.Escrow = addr
+              break;
+            }
+
+            default:
+              console.warn(`Unexpected global variable "${key}" from app with id ${appId}`)
+              break;
+          }
+        });
+      }
+    }
+    console.log(JSON.stringify(info, undefined, 2));
+
+    return info;
+  }
+
+  /**
+   * @param {number} appId
+   * @param {string} address
+   */
+  async getAppInfoLocal(appId, address) {
+    const rawInfo = await this.indexer.lookupAccountAppLocalStates(address).do();
+    console.log(JSON.stringify(rawInfo, undefined, 2));
+    let info =  {};
+    return info;
   }
 
   /**

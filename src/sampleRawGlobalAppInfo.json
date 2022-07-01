@@ -1,0 +1,95 @@
+{
+  "application": {
+    "created-at-round": 22553738,
+    "deleted": false,
+    "id": 97892527,
+    "params": {
+      "approval-program": "BCAFAAECBAUmEwVUZWFtMglMaW1pdERhdGUIRml4ZWRGZWUGV2lubmVyBlRvdGFsMQZUb3RhbDIOTXlCZXR0aW5nQ291bnQGRXNjcm93CE15VG90YWwxCE15VG90YWwyBVRlYW0xB0VuZERhdGUABk15QmV0MAZNeUJldDEGTXlCZXQyBk15QmV0MwZNeUJldDQGTXlCZXQ1MRgiEkEAA4gANDEZJRJAAB4xGSMSQAAaMRkiEkAAFjEZJBJAABIxGSEEEkAADQCIAD6IAEGIAFiIAE2IAEwxGyEEEkQnCjYaAGcoNhoBZyk2GgIXZycLNhoDF2cqNhoEF2crJwxnJwQiZycFImcjQzEAMgkSQzIHKWQORDEzIhJEIicGImYjQyNDMQAyCRJDMQAyCRJBAAOIAAOIAFUxGyQSRDYaAIAGZXNjcm93EkAAEDYaAIAGd2lubmVyEkAABACIAAOIAAgnBzYaAWcjQzIHKWQNRDIHJwtkDkQ2GgEnCmQSNhoBKGQSEUQrNhoBZyNDNhoAgANiZXQSQAAfNhoAgAVjbGFpbRJAABQ2GgCAB3JlY2xhaW0SQAAHAIgABogBJIgBjTEbJBJEMgcpZA5EIicGYoEGDEQyBCQSRDMAECUSRDMAFCcHZBJEMwASKmQNRDYaAScKZBI2GgEoZBJJNQARRCInBmI1ATQBIhJAACY0ASMSQAAxNAEkEkAAPDQBgQMSQABGNAElEkAAUTQBIQQSQABbAIAHTXlUZWFtMDUCJw01A0IAV4AHTXlUZWFtMTUCJw41A0IARYAHTXlUZWFtMjUCJw81A0IAM4AHTXlUZWFtMzUCJxA1A0IAIYAHTXlUZWFtNDUCJxE1A0IAD4AHTXlUZWFtNTUCJxI1AyI0AjYaAWYiNAMzABJmIicGSmIjCGY0AEAAFicESWQzABIIZyInCEpiMwASCGZCABMnBUlkMwASCGciJwlKYjMAEghmI0MxGyMSRDIEJBJEMwAQJRJEMwAAJwdkEkQzABQzAQASRCtkKGQSQAAOJwRkNQAiJwhiNQNCAAsnBWQ1ACInCWI1AzQAMwASKmQICzUBJwRkJwVkCDQDCzUCNAE0Ag5ENAE0AAg0Ag1EiABFI0MxGyMSRDIHJwtkDUQnDCtkEkQyBCQSRDMAECUSRDMAEycHZBJEMwAUMwEAEkQzABIqZAgiJwhiIicJYggSRIgAAiNDIicNImYiJw4iZiInDyJmIicQImYiJxEiZiInEiJmIicIImYiJwkiZok=",
+      "clear-state-program": "AiABASI=",
+      "creator": "FVNSMRZY3Z6CGATILBNY3DAZ652DGBHBB77SVM2BV3LEBOTZNOCUY6IIPE",
+      "global-state": [
+        {
+          "key": "RW5kRGF0ZQ==",
+          "value": {
+            "bytes": "",
+            "type": 2,
+            "uint": 1657854461
+          }
+        },
+        {
+          "key": "VG90YWwy",
+          "value": {
+            "bytes": "",
+            "type": 2,
+            "uint": 0
+          }
+        },
+        {
+          "key": "VGVhbTE=",
+          "value": {
+            "bytes": "dGVhbTE=",
+            "type": 1,
+            "uint": 0
+          }
+        },
+        {
+          "key": "VGVhbTI=",
+          "value": {
+            "bytes": "dGVhbTI=",
+            "type": 1,
+            "uint": 0
+          }
+        },
+        {
+          "key": "VG90YWwx",
+          "value": {
+            "bytes": "",
+            "type": 2,
+            "uint": 0
+          }
+        },
+        {
+          "key": "RXNjcm93",
+          "value": {
+            "bytes": "iwl8VZZji2i05Jor851EsV88OdIWVNtSyRQLp4kb5ks=",
+            "type": 1,
+            "uint": 0
+          }
+        },
+        {
+          "key": "Rml4ZWRGZWU=",
+          "value": {
+            "bytes": "",
+            "type": 2,
+            "uint": 2000000
+          }
+        },
+        {
+          "key": "TGltaXREYXRl",
+          "value": {
+            "bytes": "",
+            "type": 2,
+            "uint": 1656644921
+          }
+        },
+        {
+          "key": "V2lubmVy",
+          "value": {
+            "bytes": "",
+            "type": 1,
+            "uint": 0
+          }
+        }
+      ],
+      "global-state-schema": {
+        "num-byte-slice": 4,
+        "num-uint": 5
+      },
+      "local-state-schema": {
+        "num-byte-slice": 1,
+        "num-uint": 1
+      }
+    }
+  },
+  "current-round": 22565672
+};
