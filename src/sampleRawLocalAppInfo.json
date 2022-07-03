@@ -1,0 +1,45 @@
+
+{
+  "app-local-state": {
+    "id": 98241053,
+    "key-value": [
+      {
+        "key": "TXlCZXQw",
+        "value": {
+          "bytes": "",
+          "type": 2,
+          "uint": 10000000
+        }
+      },
+      {
+        "key": "TXlCZXR0aW5nQ291bnQ=",
+        "value": {
+          "bytes": "",
+          "type": 2,
+          "uint": 1
+        }
+      },
+      {
+        "key": "TXlUb3RhbDE=",
+        "value": {
+          "bytes": "",
+          "type": 2,
+          "uint": 10000000
+        }
+      },
+      {
+        "key": "TXlUZWFtMA==",
+        "value": {
+          "bytes": "Umlja3kgVHVyY2lvcw==",
+          "type": 1,
+          "uint": 0
+        }
+      }
+    ],
+    "schema": {
+      "num-byte-slice": 6,
+      "num-uint": 9
+    }
+  },
+  "round": 22605630
+}

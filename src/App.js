@@ -34,7 +34,10 @@ function App() {
 
   const onRefreshAppInfoClick = async () => {
     const globalInfo = wrapper.getAppInfoGlobal(appId);
-    // const localInfo = wrapper.getAppInfoLocal(appId, address);
+    console.log(JSON.stringify(globalInfo, undefined, 2));
+
+    const localInfo = wrapper.getAppInfoLocal(address, appId);
+    console.log(JSON.stringify(localInfo, undefined, 2));
   }
 
   const onClaimClick = async () => {

@@ -8,6 +8,19 @@ export const AlgoSigner = window.AlgoSigner;
 const ESCROW_ADDRESS="RMEXYVMWMOFWRNHETIV7HHKEWFPTYOOSCZKNWUWJCQF2PCI34ZFSW6ZBAA"
 const ESCROW_MNEMONIC="castle maximum drastic skill purity grace hunt enlist toe quarter cloud cycle army mass secret struggle oxygen tattoo click typical coyote maid tumble absorb under"
 
+/**
+  --------------------------------------------------
+        limitDate                | before |  after
+  -------------------------------+--------+---------
+   user bets                     |    O   |   X
+  -------------------------------+------------------
+   admin sets winner             |    X   |   O
+  -------------------------------+--------+---------
+   user claims(before set winner)|    X   |   X
+  -------------------------------+------------------
+   user claims(after set winner) |    X   |   O
+  -------------------------------+------------------
+*/
 
 /**
  * Interface of AlgoSigner
@@ -149,19 +162,70 @@ export class AlgoSignerWrapper {
         });
       }
     }
-    console.log(JSON.stringify(info, undefined, 2));
+    // console.log(JSON.stringify(info, undefined, 2));
 
     return info;
   }
 
   /**
-   * @param {number} appId
    * @param {string} address
+   * @param {number} appId
+   * @return empty object {} if address does not optin app
    */
-  async getAppInfoLocal(appId, address) {
-    const rawInfo = await this.indexer.lookupAccountAppLocalStates(address).do();
-    console.log(JSON.stringify(rawInfo, undefined, 2));
+  async getAppInfoLocal(address, appId) {
+    console.log(``)
+    const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
+    // console.log(JSON.stringify(rawInfo, undefined, 2));
+    
     let info =  {};
+
+    if (rawInfo && rawInfo['app-local-state'] && rawInfo['app-local-state']['key-value']) {
+      info.localState = {};
+
+      const rawLocalState = rawInfo['app-local-state']['key-value'];
+      rawLocalState.forEach(item => {
+        const key = Buffer.from(item['key'], 'base64').toString('ascii');
+        const val_str = Buffer.from(item['value']['bytes'], 'base64').toString('ascii');
+        const val_uint = item['value']['uint'];
+        switch (key) {
+          case "MyTeam0":
+            info.localState.MyTeam0 = val_str;
+            break;
+          case "MyTeam1":
+            info.localState.MyTeam1 = val_str;
+            break;
+          case "MyTeam2":
+            info.localState.MyTeam2 = val_str;
+            break;
+          case "MyTeam3":
+            info.localState.MyTeam3 = val_str;
+            break;
+          case "MyTeam4":
+            info.localState.MyTeam4 = val_str;
+            break;
+          case "MyTeam5":
+            info.localState.MyTeam5 = val_str;
+            break;
+         case "MyBettingCount":
+          case "MyBet0":
+          case "MyBet1":
+          case "MyBet2":
+          case "MyBet3":
+          case "MyBet4":
+          case "MyBet5":
+          case "MyTotal1":
+          case "MyTotal2":
+            info.localState[key] = val_uint;
+            break;
+
+          default:
+            console.warn(`Unexpected local variable "${key}" from app with address ${address}, id ${appId}`)
+            break;
+        }
+      });
+    }
+    // console.log(JSON.stringify(info, undefined, 2));
+
     return info;
   }
 
