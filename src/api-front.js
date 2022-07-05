@@ -5,8 +5,8 @@ export const USDC_ASSET_ID_TESTNET = 10458941;
 export const USDC_ASSET_ID_MAINNET = 31566704;
 export const AlgoSigner = window.AlgoSigner;
 
-const ESCROW_ADDRESS="RMEXYVMWMOFWRNHETIV7HHKEWFPTYOOSCZKNWUWJCQF2PCI34ZFSW6ZBAA"
-const ESCROW_MNEMONIC="castle maximum drastic skill purity grace hunt enlist toe quarter cloud cycle army mass secret struggle oxygen tattoo click typical coyote maid tumble absorb under"
+const ESCROW_ADDRESS='RMEXYVMWMOFWRNHETIV7HHKEWFPTYOOSCZKNWUWJCQF2PCI34ZFSW6ZBAA'
+const ESCROW_MNEMONIC='castle maximum drastic skill purity grace hunt enlist toe quarter cloud cycle army mass secret struggle oxygen tattoo click typical coyote maid tumble absorb under'
 
 /**
   --------------------------------------------------
@@ -27,21 +27,37 @@ const ESCROW_MNEMONIC="castle maximum drastic skill purity grace hunt enlist toe
  */
 export class AlgoSignerWrapper {
   /**
-   * @param {string} ledgerName 
-   * @param {number} usdcAssetId 
-   * @param {number} fixedFee 
+   * @param {string} ledgerName 'TestNet'|'MainNet'
+   * @param {string} xApiKey 
+   * @param {string} clientBaseServer 
+   * @param {string} indexerBaseServer 
+   * @param {string|number} port 
    */
-  constructor(ledgerName, usdcAssetId, fixedFee) {
+  constructor(ledgerName,
+              xApiKey,
+              clientBaseServer,
+              indexerBaseServer,
+              port='') {
     if (typeof AlgoSigner !== 'undefined') {
       AlgoSigner.connect();
+
+      /** @type {string} */
       this.ledgerName = ledgerName;
-      this.usdcAssetId = usdcAssetId;
-      this.fixedFee = fixedFee;
-      this.xApiKey = 'lxbjS3nPrM94Xt1KyNv7iIFlZTURUtX3Lc3WFLqc';
-      this.clientBaseServer = 'https://testnet-algorand.api.purestake.io/ps2';
-      this.indexerBaseServer = 'https://testnet-algorand.api.purestake.io/idx2';
-      this.client = new algosdk.Algodv2( { 'X-API-Key': this.xApiKey }, this.clientBaseServer, '');
-      this.indexer = new algosdk.Indexer( { 'X-API-Key': this.xApiKey }, this.indexerBaseServer, '');
+      /** @type {algosdk.Algodv2} */
+      this.client = undefined;
+      /** @type {algosdk.Indexer} */
+      this.indexer = undefined;
+      /** @type {number} */
+      this.usdcAssetId = undefined;
+
+      if (ledgerName === 'TestNet') {
+        this.usdcAssetId = USDC_ASSET_ID_TESTNET;
+      } else if (ledgerName ===  'MainNet') {
+        this.usdcAssetId = USDC_ASSET_ID_MAINNET;
+      }
+
+      this.client = new algosdk.Algodv2( { 'X-API-Key': xApiKey }, clientBaseServer, port);
+      this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
     } else {
       console.log('AlgoSigner is NOT installed.');
     };
@@ -52,11 +68,11 @@ export class AlgoSignerWrapper {
   * @param {number} appId 
   */
   async optinApp(address, appId) {
-    console.log("Optin App...");
+    console.log('Optin App...');
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationOptInTxn(address, params, appId);
     await this.#sendSingleTxn(txn);
-    console.log("Optin App complete!");
+    console.log('Optin App complete!');
   }
 
   /**
@@ -70,10 +86,10 @@ export class AlgoSignerWrapper {
     const params = await this.#getMinParams();
     const txn0 = await this.#makeUsdcTransferTxn(address, ESCROW_ADDRESS, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(address, params, appId, [new TextEncoder().encode('bet'), new TextEncoder().encode(myTeam)]);
-    console.log(`    txn0.txId: ${txn0.txID()}`);
-    console.log(`    txn1.txId: ${txn1.txID()}`);
+    // console.log(`    txn0.txId: ${txn0.txID()}`);
+    // console.log(`    txn1.txId: ${txn1.txID()}`);
     await this.#sendDoubleTxnsWallet(txn0, txn1);
-    console.log("Betting complete!");
+    console.log('Betting complete!');
   }
 
   /**
@@ -85,8 +101,11 @@ export class AlgoSignerWrapper {
    * @param {number} otherTeamTotal
    */
   async claim(address, appId, myBet, myTeamTotal, otherTeamTotal) {
-    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
-    console.log("Claiming " + amount + " with account " + address);
+    const globalInfo = await this.getAppInfoGlobal(appId);
+    // console.log(JSON.stringify(globalInfo, undefined, 2));
+    // const localInfo = await this.getAppInfoLocal(address, appId);
+    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, globalInfo.globalState.FixedFee);
+    console.log(`Claim: myBet=${myBet}, myTeamTotal=${myTeamTotal}, otherTeamTotal=${otherTeamTotal}, amount=${amount}`);
     await this.getAccountAssetInfo(ESCROW_ADDRESS, this.usdcAssetId);
     await this.getAccountAssetInfo(address, this.usdcAssetId);
     const params = await this.#getMinParams();
@@ -96,7 +115,7 @@ export class AlgoSignerWrapper {
     await this.#sendDoubleTxns(escrowAccount.sk, txn0, undefined, txn1);
     await this.getAccountAssetInfo(ESCROW_ADDRESS, this.usdcAssetId);
     await this.getAccountAssetInfo(address, this.usdcAssetId);
-    console.log("Claim complete!");
+    console.log('Claim complete!');
   }
 
   /**
@@ -104,7 +123,7 @@ export class AlgoSignerWrapper {
    * @returns 
    */
   async getAccounts() {
-    const accounts = await AlgoSigner.accounts({ ledger: 'TestNet' });
+    const accounts = await AlgoSigner.accounts({ ledger: this.ledgerName });
     console.log(JSON.stringify(accounts, undefined, 2));
     return accounts;
   }
@@ -132,23 +151,23 @@ export class AlgoSignerWrapper {
           const val_str = Buffer.from(item['value']['bytes'], 'base64').toString('ascii');
           const val_uint = item['value']['uint'];
           switch (key) {
-            case "Team1":
+            case 'Team1':
               info.globalState.Team1 = val_str;
               break;
-            case "Team2":
+            case 'Team2':
               info.globalState.Team2 = val_str;
               break;
-            case "Winner":
+            case 'Winner':
               info.globalState.Winner = val_str;
               break;
-            case "LimitDate":
-            case "EndDate":
-            case "FixedFee":
-            case "Total1":
-            case "Total2":
+            case 'LimitDate':
+            case 'EndDate':
+            case 'FixedFee':
+            case 'Total1':
+            case 'Total2':
               info.globalState[key] = val_uint;
               break;
-            case "Escrow": {
+            case 'Escrow': {
               const bytes = Base64.toUint8Array(item['value']['bytes']);
               const addr = algosdk.encodeAddress(bytes);
               info.globalState.Escrow = addr
@@ -156,7 +175,7 @@ export class AlgoSignerWrapper {
             }
 
             default:
-              console.warn(`Unexpected global variable "${key}" from app with id ${appId}`)
+              console.warn(`Unexpected global variable '${key}' from app with id ${appId}`)
               break;
           }
         });
@@ -173,7 +192,6 @@ export class AlgoSignerWrapper {
    * @return empty object {} if address does not optin app
    */
   async getAppInfoLocal(address, appId) {
-    console.log(``)
     const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
     // console.log(JSON.stringify(rawInfo, undefined, 2));
     
@@ -188,38 +206,38 @@ export class AlgoSignerWrapper {
         const val_str = Buffer.from(item['value']['bytes'], 'base64').toString('ascii');
         const val_uint = item['value']['uint'];
         switch (key) {
-          case "MyTeam0":
+          case 'MyTeam0':
             info.localState.MyTeam0 = val_str;
             break;
-          case "MyTeam1":
+          case 'MyTeam1':
             info.localState.MyTeam1 = val_str;
             break;
-          case "MyTeam2":
+          case 'MyTeam2':
             info.localState.MyTeam2 = val_str;
             break;
-          case "MyTeam3":
+          case 'MyTeam3':
             info.localState.MyTeam3 = val_str;
             break;
-          case "MyTeam4":
+          case 'MyTeam4':
             info.localState.MyTeam4 = val_str;
             break;
-          case "MyTeam5":
+          case 'MyTeam5':
             info.localState.MyTeam5 = val_str;
             break;
-         case "MyBettingCount":
-          case "MyBet0":
-          case "MyBet1":
-          case "MyBet2":
-          case "MyBet3":
-          case "MyBet4":
-          case "MyBet5":
-          case "MyTotal1":
-          case "MyTotal2":
+         case 'MyBettingCount':
+          case 'MyBet0':
+          case 'MyBet1':
+          case 'MyBet2':
+          case 'MyBet3':
+          case 'MyBet4':
+          case 'MyBet5':
+          case 'MyTotal1':
+          case 'MyTotal2':
             info.localState[key] = val_uint;
             break;
 
           default:
-            console.warn(`Unexpected local variable "${key}" from app with address ${address}, id ${appId}`)
+            console.warn(`Unexpected local variable '${key}' from app with address ${address}, id ${appId}`)
             break;
         }
       });
@@ -248,7 +266,7 @@ export class AlgoSignerWrapper {
         }
     }
 
-    console.log("info = " + JSON.stringify(assetInfo, undefined, 2));
+    console.log('info = ' + JSON.stringify(assetInfo, undefined, 2));
     return assetInfo
   }
 
@@ -260,8 +278,8 @@ export class AlgoSignerWrapper {
    * @param {number} fee 
    * @returns {number} The amount a user may claim.
    */
-  #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal) {
-    return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - this.fixedFee)
+  #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, fee) {
+    return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - fee)
   }
 
   /**
@@ -280,8 +298,8 @@ export class AlgoSignerWrapper {
    */
   async #sendSingleTxn(txn) {
     const signedTxn = await this.#signSingleTxn(txn);
-    console.log("#sendSingleTxn - signedTxn.txID: " + signedTxn.txID);
-    console.log("#sendSingleTxn - signedTxn.blob: " + signedTxn.blob);
+    // console.log('#sendSingleTxn - signedTxn.txID: ' + signedTxn.txID);
+    // console.log('#sendSingleTxn - signedTxn.blob: ' + signedTxn.blob);
     await AlgoSigner.send({
       ledger: this.ledgerName,
       tx: signedTxn.blob,
@@ -292,17 +310,17 @@ export class AlgoSignerWrapper {
    * @param {algosdk.Transaction} txn 
    */
   async #signSingleTxn(txn) {
-    console.log("#signSingleTxn - ");
-    console.log(`    txn.txId: ${txn.txID()}`);
+    console.log('#signSingleTxn - ');
+    // console.log(`    txn.txId: ${txn.txID()}`);
     const binaryTxn = txn.toByte();
-    console.log(`    binaryTxn.byteLength: ${binaryTxn.byteLength}`);
+    // console.log(`    binaryTxn.byteLength: ${binaryTxn.byteLength}`);
     const base64Txn = AlgoSigner.encoding.msgpackToBase64(binaryTxn);
     const signedTxs = await AlgoSigner.signTxn([
       {
           txn: base64Txn,
       }
     ]);
-    console.log("#signSingleTxn - complete!");
+    console.log('#signSingleTxn - complete!');
 
     return signedTxs[0];
   }
@@ -314,7 +332,7 @@ export class AlgoSignerWrapper {
    * @param {Uint8Array} sk1
    */
   async #sendDoubleTxnsWallet(txn0, txn1) {
-    console.log("#sendDoubleTxnsSame - ");
+    console.log('#sendDoubleTxnsSame - ');
     algosdk.assignGroupID([txn0, txn1]);
 
     let binaryTxs = [txn0.toByte(), txn1.toByte()];
@@ -338,11 +356,11 @@ export class AlgoSignerWrapper {
     let combinedBase64Txns = AlgoSigner.encoding.msgpackToBase64(combinedBinaryTxns);
     
     await AlgoSigner.send({
-      ledger: 'TestNet',
+      ledger: this.ledgerName,
       tx: combinedBase64Txns,
     });
 
-    console.log("#sendDoubleTxnsSame - complete!");
+    console.log('#sendDoubleTxnsSame - complete!');
   }
 
   /**
@@ -352,7 +370,7 @@ export class AlgoSignerWrapper {
    * @param {algosdk.Transaction} txn1
    */
    async #sendDoubleTxns(sk0, txn0, sk1, txn1) {
-    console.log("#sendDoubleTxns - ");
+    console.log('#sendDoubleTxns - ');
     algosdk.assignGroupID([txn0, txn1]);
     let binaryTxs = [txn0.toByte(), txn1.toByte()];
     let base64Txs = binaryTxs.map((binary) => AlgoSigner.encoding.msgpackToBase64(binary));
@@ -373,7 +391,7 @@ export class AlgoSignerWrapper {
     let signedTxn1Binary = sk1 ? txn1.signTxn(sk1) : AlgoSigner.encoding.base64ToMsgpack(signedTxs[1].blob);
 
     await this.client.sendRawTransaction([signedTxn0Binary, signedTxn1Binary]).do();
-    console.log("#sendDoubleTxns - complete!");
+    console.log('#sendDoubleTxns - complete!');
   }
 
   /**

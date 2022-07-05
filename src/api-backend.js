@@ -1,9 +1,59 @@
 const algosdk = require('algosdk');
 const fs = require('fs');
-const {stringToByteArray, numberToByteArray, stringToTimestamp, sleep} = require('./util');
+const { Base64 } = require('js-base64');
+const prompt = require("prompt-sync")({ sigint: true });
 
 const USDC_ASSET_ID_TESTNET = 10458941;
 const USDC_ASSET_ID_MAINNET = 31566704;
+
+/**
+ * @param {string} ask 
+ */
+function inputString(ask=undefined) {
+  let s;
+  if (process.stdin.isTTY) {
+    ask ||= 'Input string';
+    s = prompt(ask + ', press [ENTER] to continue ...');
+  }
+
+  return s;
+}
+
+/**
+ * @param {string} s 
+ */
+function stringToByteArray(s) {
+  return new TextEncoder().encode(s)
+}
+
+/**
+ * @param {number} n 
+ */
+function numberToByteArray(n) {
+  const bytes = new Uint8Array(4);
+  bytes[0] = (n >> 24) & 0xff;
+  bytes[1] = (n >> 16) & 0xff;
+  bytes[2] = (n >> 8) & 0xff;
+  bytes[3] = n & 0xff;
+  return bytes;
+}
+
+/**
+ * @param {string} date 
+ * @returns 
+ */
+function stringToTimestamp(date) {
+  return Math.round(new Date(date).getTime()/1000);
+}
+
+/**
+ * @param {number} seconds in second
+ * @returns 
+ */
+function sleep(seconds) {
+  console.log('wait while sleep for ' + seconds + ' seconds');
+  return new Promise(resolve => setTimeout(resolve, seconds*1000));
+}
 
 class AutobookieDapp {
   /**
@@ -14,8 +64,9 @@ class AutobookieDapp {
    * @param {string} team2 
    * @param {number} limitDate 
    * @param {number} endDate 
+   * @param {number} fixedFee 
    */
-  constructor(appId, creator, escrow, team1, team2, limitDate, endDate) {
+  constructor(appId, creator, escrow, team1, team2, limitDate, endDate, fixedFee) {
     /** @type {number} */
     this.appId = appId;
     /** @type {string} */
@@ -32,6 +83,8 @@ class AutobookieDapp {
     this.endDate = endDate;
     /** @type {string} */
     this.winner = '';
+    /** @type {number} */
+    this.fixedFee = fixedFee;
   }
 }
 
@@ -40,18 +93,159 @@ class AutobookieDapp {
  */
 class AutobookieCore {
   /**
-   * @param {string} algoToken 
-   * @param {string} algodAddr 
-   * @param {number} algodPort 
-   * @param {number} usdcAssetId 
-   * @param {number} fixedFee 
+   * @param {string} ledgerName 'Sandbox'|'TestNet'|'MainNet'
+   * @param {string} xApiKey 
+   * @param {string} clientBaseServer 
+   * @param {string} indexerBaseServer 
+   * @param {string|number} port 
    */
-  constructor(algoToken, algodAddr, algodPort, usdcAssetId, fixedFee) {
+  constructor(ledgerName,
+              xApiKey,
+              clientBaseServer,
+              indexerBaseServer,
+              port='') {
+    /** @type {string} */
+    this.ledgerName = ledgerName;
     /** @type {algosdk.Algodv2} */
-    this.client = new algosdk.Algodv2(algoToken, algodAddr, algodPort);
+    this.client = undefined;
+    /** @type {algosdk.Indexer} */
+    this.indexer = undefined;
     /** @type {number} */
-    this.usdcAssetId = usdcAssetId;
-    this.fixedFee = fixedFee;
+    this.usdcAssetId = undefined;
+
+    if (ledgerName === 'Sandbox') {
+      this.ledgerName = 'TestNet';
+      this.client = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
+      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
+    } else if (ledgerName === 'TestNet') {
+      this.client = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
+      this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
+      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
+    } else if (ledgerName  === 'MainNet') {
+      this.client = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
+      this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
+      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
+    }
+  }
+
+  /**
+   * @param {number} appId
+   */
+  async getAppInfoGlobal(appId)  {
+    const rawInfo = await this.indexer?.lookupApplications(appId).do();
+    // console.log(JSON.stringify(rawInfo, undefined, 2));
+
+    let info =  {};
+
+    if (rawInfo && rawInfo['application'] && rawInfo['application']['params']) {
+      const rawParams = rawInfo['application']['params'];
+      info.creator = rawParams.creator;
+      info.deleted = rawInfo.application.deleted;
+
+      if (rawParams['global-state']) {
+        info.globalState = {};
+
+        const rawGlobalState = rawParams['global-state'];
+        rawGlobalState.forEach(item => {
+          const key = Buffer.from(item['key'], 'base64').toString('ascii');
+          const val_str = Buffer.from(item['value']['bytes'], 'base64').toString('ascii');
+          const val_uint = item['value']['uint'];
+          switch (key) {
+            case 'Team1':
+              info.globalState.Team1 = val_str;
+              break;
+            case 'Team2':
+              info.globalState.Team2 = val_str;
+              break;
+            case 'Winner':
+              info.globalState.Winner = val_str;
+              break;
+            case 'LimitDate':
+            case 'EndDate':
+            case 'FixedFee':
+            case 'Total1':
+            case 'Total2':
+              info.globalState[key] = val_uint;
+              break;
+            case 'Escrow': {
+              const bytes = Base64.toUint8Array(item['value']['bytes']);
+              const addr = algosdk.encodeAddress(bytes);
+              info.globalState.Escrow = addr
+              break;
+            }
+
+            default:
+              console.warn(`Unexpected global variable '${key}' from app with id ${appId}`)
+              break;
+          }
+        });
+      }
+    }
+    // console.log(JSON.stringify(info, undefined, 2));
+
+    return info;
+  }
+
+  /**
+   * @param {string} address
+   * @param {number} appId
+   * @return empty object {} if address does not optin app
+   */
+   async getAppInfoLocal(address, appId) {
+    console.log(``)
+    const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
+    // console.log(JSON.stringify(rawInfo, undefined, 2));
+    
+    let info =  {};
+
+    if (rawInfo && rawInfo['app-local-state'] && rawInfo['app-local-state']['key-value']) {
+      info.localState = {};
+
+      const rawLocalState = rawInfo['app-local-state']['key-value'];
+      rawLocalState.forEach(item => {
+        const key = Buffer.from(item['key'], 'base64').toString('ascii');
+        const val_str = Buffer.from(item['value']['bytes'], 'base64').toString('ascii');
+        const val_uint = item['value']['uint'];
+        switch (key) {
+          case 'MyTeam0':
+            info.localState.MyTeam0 = val_str;
+            break;
+          case 'MyTeam1':
+            info.localState.MyTeam1 = val_str;
+            break;
+          case 'MyTeam2':
+            info.localState.MyTeam2 = val_str;
+            break;
+          case 'MyTeam3':
+            info.localState.MyTeam3 = val_str;
+            break;
+          case 'MyTeam4':
+            info.localState.MyTeam4 = val_str;
+            break;
+          case 'MyTeam5':
+            info.localState.MyTeam5 = val_str;
+            break;
+         case 'MyBettingCount':
+          case 'MyBet0':
+          case 'MyBet1':
+          case 'MyBet2':
+          case 'MyBet3':
+          case 'MyBet4':
+          case 'MyBet5':
+          case 'MyTotal1':
+          case 'MyTotal2':
+            info.localState[key] = val_uint;
+            break;
+
+          default:
+            console.warn(`Unexpected local variable '${key}' from app with address ${address}, id ${appId}`)
+            break;
+        }
+      });
+    }
+    // console.log(JSON.stringify(info, undefined, 2));
+
+    return info;
   }
 
   /**
@@ -73,7 +267,7 @@ class AutobookieCore {
         }
     }
 
-    console.log("info = " + JSON.stringify(assetInfo, undefined, 2));
+    console.log('info = ' + JSON.stringify(assetInfo, undefined, 2));
     return assetInfo
   }
 
@@ -94,8 +288,10 @@ class AutobookieCore {
    * @param {string} team2 
    * @param {number} limitDate 
    * @param {number} endDate 
+   * @param {number} fixedFee 
+   * @return {AutobookieDapp} 
    */
-  async createDapp(creatorMnemonic, escrowMnemonic, team1, team2, limitDate, endDate) {
+  async createDapp(creatorMnemonic, escrowMnemonic, team1, team2, limitDate, endDate, fixedFee) {
     console.log(`Creating DApp... ${limitDate} ~ ${endDate}`);
     const creatorAccount = algosdk.mnemonicToSecretKey(creatorMnemonic);
     // create dapp
@@ -103,7 +299,7 @@ class AutobookieCore {
                   stringToByteArray(team2),
                   numberToByteArray(limitDate),
                   numberToByteArray(endDate),
-                  numberToByteArray(this.fixedFee)          // fee 20 USDC
+                  numberToByteArray(fixedFee)
     ];
     const response = await this.#createApp(5, 4, 9, 6, './teal/approval.teal', './teal/clear.teal', creatorAccount, args);
     console.log('Successfully deployed application: ');
@@ -126,7 +322,7 @@ class AutobookieCore {
     // console.log('Funding escrow account done');
 
     await this.makeAccoutCanUseUsdc(escrow.mnemonic);
-    const dapp = new AutobookieDapp(appId, creatorAccount.addr, escrow, team1, team2, limitDate, endDate);
+    const dapp = new AutobookieDapp(appId, creatorAccount.addr, escrow, team1, team2, limitDate, endDate, fixedFee);
     await this.setEscrow(creatorMnemonic, dapp);
     console.log('DApp created: ', dapp);
     return dapp;
@@ -163,7 +359,7 @@ class AutobookieCore {
   
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const response = await this.#callAppNoOp(account, appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
-    console.log("Successfully update application:");
+    console.log('Successfully update application:');
     console.log(response, '\n\n');
   }
 
@@ -187,7 +383,7 @@ class AutobookieCore {
     const txn0 = algosdk.makePaymentTxnWithSuggestedParams(dapp.escrow.addr, account.addr, 0, undefined, undefined, params);
     const txn1 = algosdk.makeApplicationDeleteTxn(account.addr, params, dapp.appId);
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    console.log("Deleted appId: ", dapp.appId);
+    console.log('Deleted appId: ', dapp.appId);
     console.log('All done!');
   }
 
@@ -204,7 +400,7 @@ class AutobookieCore {
     const signedTxn = txn.signTxn(account.sk);
     const {txId} = await this.client.sendRawTransaction(signedTxn).do();
     await algosdk.waitForConfirmation(this.client, txId, 20);
-    console.log("Deleted appId: ", appId);
+    console.log('Deleted appId: ', appId);
     console.log('All done!');
   }
 
@@ -213,11 +409,11 @@ class AutobookieCore {
    * @param {number} appId 
    */
   async fakeUserOptinApp(mnemonic, appId) {
-    console.log("Prepare Betting starting...");
+    console.log('Prepare Betting starting...');
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
-    console.log("Prepare Betting complete!");
+    console.log('Prepare Betting complete!');
     return this.#sendSingleTxn(account.sk, txn);
   }
 
@@ -235,7 +431,7 @@ class AutobookieCore {
     const txn0 = await this.#makeUsdcTransferTxn(account.addr, escrowAddr, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet'), stringToByteArray(myTeam)]);
     await this.#sendDoubleTxns(account.sk, txn0, account.sk, txn1);
-    console.log("Betting complete!");
+    console.log('Betting complete!');
   }
 
   /**
@@ -248,8 +444,8 @@ class AutobookieCore {
    */
   async fakeUserClaim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal);
-    console.log("Claiming " + amount + " with account " + account.addr);
+    const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, dapp.fixedFee);
+    console.log('Claiming ' + amount + ' with account ' + account.addr);
     await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
     const params = await this.#getMinParams();
@@ -258,7 +454,7 @@ class AutobookieCore {
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
     await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
-    console.log("Claim complete!");
+    console.log('Claim complete!');
   }
 
   ////////// private methods //////////
@@ -347,7 +543,7 @@ class AutobookieCore {
     await algosdk.waitForConfirmation(this.client, txId, 20);
     const transactionResponse = await this.client.pendingTransactionInformation(txId).do();
     const appId = transactionResponse['application-index'];
-    console.log("Created new app-id: ",appId);
+    console.log('Created new app-id: ', appId);
 
     return transactionResponse;
   }
@@ -389,8 +585,8 @@ class AutobookieCore {
    * @param {number} fee 
    * @returns {number} The amount a user may claim.
    */
-  #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal) {
-    return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - this.fixedFee)
+  #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, fee) {
+    return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - fee)
   }
 
   /**
@@ -409,6 +605,8 @@ class AutobookieCore {
 module.exports = {
   AutobookieCore,
   AutobookieDapp,
+  inputString,
+  stringToTimestamp,
   USDC_ASSET_ID_TESTNET,
   USDC_ASSET_ID_MAINNET,
 }
