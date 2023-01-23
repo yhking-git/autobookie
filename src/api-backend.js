@@ -7,7 +7,7 @@ const USDC_ASSET_ID_TESTNET = 10458941;
 const USDC_ASSET_ID_MAINNET = 31566704;
 
 /**
- * @param {string} ask 
+ * @param {string} ask
  */
 function inputString(ask=undefined) {
   let s;
@@ -20,14 +20,14 @@ function inputString(ask=undefined) {
 }
 
 /**
- * @param {string} s 
+ * @param {string} s
  */
 function stringToByteArray(s) {
   return new TextEncoder().encode(s)
 }
 
 /**
- * @param {number} n 
+ * @param {number} n
  */
 function numberToByteArray(n) {
   const bytes = new Uint8Array(4);
@@ -39,8 +39,8 @@ function numberToByteArray(n) {
 }
 
 /**
- * @param {string} date 
- * @returns 
+ * @param {string} date
+ * @returns
  */
 function stringToTimestamp(date) {
   return Math.round(new Date(date).getTime()/1000);
@@ -48,7 +48,7 @@ function stringToTimestamp(date) {
 
 /**
  * @param {number} seconds in second
- * @returns 
+ * @returns
  */
 function sleep(seconds) {
   console.log('wait while sleep for ' + seconds + ' seconds');
@@ -57,14 +57,14 @@ function sleep(seconds) {
 
 class AutobookieDapp {
   /**
-   * @param {number} appId 
-   * @param {string} creator 
-   * @param {{addr: string, sk: Uint8Array, mnemonic: string}} escrow 
-   * @param {string} team1 
-   * @param {string} team2 
-   * @param {number} limitDate 
-   * @param {number} endDate 
-   * @param {number} fixedFee 
+   * @param {number} appId
+   * @param {string} creator
+   * @param {{addr: string, sk: Uint8Array, mnemonic: string}} escrow
+   * @param {string} team1
+   * @param {string} team2
+   * @param {number} limitDate
+   * @param {number} endDate
+   * @param {number} fixedFee
    */
   constructor(appId, creator, escrow, team1, team2, limitDate, endDate, fixedFee) {
     /** @type {number} */
@@ -94,10 +94,10 @@ class AutobookieDapp {
 class AutobookieCore {
   /**
    * @param {string} ledgerName 'Sandbox'|'TestNet'|'MainNet'
-   * @param {string} xApiKey 
-   * @param {string} clientBaseServer 
-   * @param {string} indexerBaseServer 
-   * @param {string|number} port 
+   * @param {string} xApiKey
+   * @param {string} clientBaseServer
+   * @param {string} indexerBaseServer
+   * @param {string|number} port
    */
   constructor(ledgerName,
               xApiKey,
@@ -124,7 +124,7 @@ class AutobookieCore {
     } else if (ledgerName  === 'MainNet') {
       this.client = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
       this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
-      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
+      this.usdcAssetId = USDC_ASSET_ID_MAINNET;
     }
   }
 
@@ -195,7 +195,7 @@ class AutobookieCore {
     console.log(``)
     const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
     // console.log(JSON.stringify(rawInfo, undefined, 2));
-    
+
     let info =  {};
 
     if (rawInfo && rawInfo['app-local-state'] && rawInfo['app-local-state']['key-value']) {
@@ -250,8 +250,8 @@ class AutobookieCore {
 
   /**
    * Function used to print asset info for account and assetid
-   * @param {string} addr 
-   * @param {number} assetId 
+   * @param {string} addr
+   * @param {number} assetId
    */
   async getAccountAssetInfo(addr, assetId) {
     const accountInfo = await this.client.accountInformation(addr).do();
@@ -272,7 +272,7 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} mnemonic 
+   * @param {string} mnemonic
    */
   async makeAccoutCanUseUsdc(mnemonic) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
@@ -282,14 +282,14 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} creatorMnemonic 
-   * @param {string} escrowMnemonic 
-   * @param {string} team1 
-   * @param {string} team2 
-   * @param {number} limitDate 
-   * @param {number} endDate 
-   * @param {number} fixedFee 
-   * @return {AutobookieDapp} 
+   * @param {string} creatorMnemonic
+   * @param {string} escrowMnemonic
+   * @param {string} team1
+   * @param {string} team2
+   * @param {number} limitDate
+   * @param {number} endDate
+   * @param {number} fixedFee
+   * @return {AutobookieDapp}
    */
   async createDapp(creatorMnemonic, escrowMnemonic, team1, team2, limitDate, endDate, fixedFee) {
     console.log(`Creating DApp... ${limitDate} ~ ${endDate}`);
@@ -330,7 +330,7 @@ class AutobookieCore {
 
   /**
    * @param {string} mnemonic
-   * @param {AutobookieDapp} dapp 
+   * @param {AutobookieDapp} dapp
    * @returns {string}
    */
   async setEscrow(mnemonic, dapp) {
@@ -341,10 +341,10 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} mnemonic 
-   * @param {number} appId 
-   * @param {string} winner 
-   * @param {number} limitDate 
+   * @param {string} mnemonic
+   * @param {number} appId
+   * @param {string} winner
+   * @param {number} limitDate
    */
   async setWinner(mnemonic, appId, winner, limitDate=undefined) {
     console.log(`Updating application ${appId} with winner ${winner}`);
@@ -356,7 +356,7 @@ class AutobookieCore {
         await sleep(seconds + 10);
       }
     }
-  
+
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const response = await this.#callAppNoOp(account, appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
     console.log('Successfully update application:');
@@ -364,8 +364,8 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} mnemonic 
-   * @param {AutobookieDapp} dapp 
+   * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp
    * @param {boolean} closeOut
    */
   async deleteDappByObject(mnemonic, dapp) {
@@ -388,8 +388,8 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} mnemonic 
-   * @param {number} appId 
+   * @param {string} mnemonic
+   * @param {number} appId
    * @param {boolean} closeOut
    */
   async deleteDappById(mnemonic, appId) {
@@ -405,8 +405,8 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} mnemonic 
-   * @param {number} appId 
+   * @param {string} mnemonic
+   * @param {number} appId
    */
   async fakeUserOptinApp(mnemonic, appId) {
     console.log('Prepare Betting starting...');
@@ -460,7 +460,7 @@ class AutobookieCore {
   ////////// private methods //////////
 
   /**
-   * @param {string} tealString 
+   * @param {string} tealString
    */
   async #compileTealString(tealString) {
     const src = tealString || '#pragma version 2\nint 1';
@@ -469,7 +469,7 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} fileName 
+   * @param {string} fileName
    */
   async #compileTealFile(fileName) {
     const src = fs.readFileSync(fileName, 'utf8') || '#pragma version 2\nint 1';
@@ -477,11 +477,11 @@ class AutobookieCore {
   }
 
   /**
-   * @param {string} from 
-   * @param {string} to 
-   * @param {number} amount 
+   * @param {string} from
+   * @param {string} to
+   * @param {number} amount
    * @param {boolean} closeAtFrom
-   * @returns 
+   * @returns
    */
   async #makeUsdcTransferTxn(from, to, amount, closeAtFrom=false) {
     return algosdk.makeAssetTransferTxnWithSuggestedParams(
@@ -497,7 +497,7 @@ class AutobookieCore {
 
   /**
    * @param {algosdk.Account} account
-   * @param {number} appId 
+   * @param {number} appId
    * @param {Uint8Array[]} args
    */
   async #callAppNoOp(account, appId, args=null) {
@@ -513,15 +513,15 @@ class AutobookieCore {
   }
 
   /**
-   * @param {number} numGlobalInts 
-   * @param {number} numGlobalByteSlices 
-   * @param {number} numLocalInts 
-   * @param {number} numLocalByteSlices 
-   * @param {string} approvalProgram 
-   * @param {string} clearProgram 
-   * @param {alogsdk.Account} account 
-   * @param {[]} appArgs 
-   * @returns 
+   * @param {number} numGlobalInts
+   * @param {number} numGlobalByteSlices
+   * @param {number} numLocalInts
+   * @param {number} numLocalByteSlices
+   * @param {string} approvalProgram
+   * @param {string} clearProgram
+   * @param {alogsdk.Account} account
+   * @param {[]} appArgs
+   * @returns
    */
   async #createApp(numGlobalInts, numGlobalByteSlices, numLocalInts, numLocalByteSlices, approvalProgram, clearProgram, account, appArgs=null) {
     const params = await this.#getMinParams();
@@ -549,8 +549,8 @@ class AutobookieCore {
   }
 
   /**
-   * @param {Uint8Array} sk 
-   * @param {algosdk.Transaction} txn 
+   * @param {Uint8Array} sk
+   * @param {algosdk.Transaction} txn
    */
   async #sendSingleTxn(sk, txn) {
     const signedTxn = txn.signTxn(sk);
@@ -579,10 +579,10 @@ class AutobookieCore {
 
   /**
    * Helper function used to calculate how much a user is entitled to if they win for the given parameters.
-   * @param {number} myBet 
-   * @param {number} myTeamTotal 
-   * @param {number} otherTeamTotal 
-   * @param {number} fee 
+   * @param {number} myBet
+   * @param {number} myTeamTotal
+   * @param {number} otherTeamTotal
+   * @param {number} fee
    * @returns {number} The amount a user may claim.
    */
   #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, fee) {
