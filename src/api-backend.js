@@ -225,7 +225,7 @@ class AutobookieCore {
           case 'MyTeam5':
             info.localState.MyTeam5 = val_str;
             break;
-         case 'MyBettingCount':
+          case 'MyBettingCount':
           case 'MyBet0':
           case 'MyBet1':
           case 'MyBet2':
@@ -260,7 +260,7 @@ class AutobookieCore {
     assetInfo['algo'] = accountInfo['amount'];
     for (let idx = 0; idx < accountInfo['assets'].length; idx++) {
         const scrutinizedAsset = accountInfo['assets'][idx];
-        if (scrutinizedAsset['asset-id'] == assetId) {
+        if (scrutinizedAsset['asset-id'] === assetId) {
             // let myassetinfo = JSON.stringify(scrutinizedAsset, undefined, 2);
             assetInfo.asset = scrutinizedAsset;
             break;
@@ -373,7 +373,7 @@ class AutobookieCore {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     // usdc
     let info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    if (info.asset != undefined && info.asset.amount != undefined && info.asset.amount > 0) {
+    if (info.asset !== undefined && info.asset.amount !== undefined && info.asset.amount > 0) {
       const usdcTxn = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, info.asset.amount);
       await this.#sendSingleTxn(dapp.escrow.sk, usdcTxn);
       info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
