@@ -191,7 +191,7 @@ class AutobookieCore {
    * @param {number} appId
    * @return empty object {} if address does not optin app
    */
-   async getAppInfoLocal(address, appId) {
+  async getAppInfoLocal(address, appId) {
     console.log(``)
     const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
     // console.log(JSON.stringify(rawInfo, undefined, 2));
@@ -406,6 +406,13 @@ class AutobookieCore {
 
   /**
    * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp
+  */
+  async cancelDapp(mnemonic, dapp) {
+
+  }
+  /**
+   * @param {string} mnemonic
    * @param {number} appId
    */
   async fakeUserOptinApp(mnemonic, appId) {
@@ -455,6 +462,14 @@ class AutobookieCore {
     await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
     await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
     console.log('Claim complete!');
+  }
+
+  /**
+   * @param {string} mnemonic
+   * @param {AutobookieDapp} dapp
+  */
+  async fakeUserReclaimFromCanceledDapp(mnemonic, dapp) {
+
   }
 
   ////////// private methods //////////

@@ -240,17 +240,17 @@ AdminSetWinner:
 
 UserNoOp:
   txna ApplicationArgs 0
-  byte "bet" 
+  byte "bet"
   ==
   bnz user_bet
 
   txna ApplicationArgs 0
-  byte "claim" 
+  byte "claim"
   ==
   bnz user_claim
 
   txna ApplicationArgs 0
-  byte "reclaim" 
+  byte "reclaim"
   ==
   bnz user_reclaim
 
@@ -314,10 +314,10 @@ UserBet:
   byte "Team2"
   app_global_get
   ==
-  
+
   dup
   store 0 //this value will be 0 if user voted for team 1 and 1 if user voted for team 2
-  
+
   ||
   assert
 
@@ -399,7 +399,7 @@ UserBet:
   txna ApplicationArgs 1
   app_local_put
 
-  int 0 
+  int 0
   load 3 // "MyBet0"|"MyBet1"|"MyBet2"|"MyBet3"|"MyBet4"|"MyBet5"
   gtxn 0 AssetAmount
   app_local_put
@@ -421,7 +421,7 @@ UserBet:
       gtxn 0 AssetAmount
       +
     app_global_put
-  
+
     int 0
     byte "MyTotal1"
       dup2
@@ -459,7 +459,7 @@ UserClaim:
   int 1
   ==
   assert
-  
+
   global GroupSize
   int 2
   ==
