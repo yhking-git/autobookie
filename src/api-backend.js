@@ -51,7 +51,7 @@ function stringToTimestamp(date) {
  * @returns
  */
 function sleep(seconds) {
-  console.log('wait while sleep for ' + seconds + ' seconds');
+  console.log('\nWaitting while sleep for ' + seconds + ' seconds');
   return new Promise(resolve => setTimeout(resolve, seconds*1000));
 }
 
@@ -192,7 +192,6 @@ class AutobookieCore {
    * @return empty object {} if address does not optin app
    */
   async getAppInfoLocal(address, appId) {
-    console.log(``)
     const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
     // console.log(JSON.stringify(rawInfo, undefined, 2));
 
@@ -278,7 +277,6 @@ class AutobookieCore {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const txn = await this.#makeUsdcTransferTxn(account.addr, account.addr, 0);
     await this.#sendSingleTxn(account.sk, txn);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
   }
 
   /**
@@ -292,7 +290,7 @@ class AutobookieCore {
    * @return {AutobookieDapp}
    */
   async createDapp(creatorMnemonic, escrowMnemonic, team1, team2, limitDate, endDate, fixedFee) {
-    console.log(`Creating DApp... ${limitDate} ~ ${endDate}`);
+    console.log(`\nCreating DApp... ${limitDate} ~ ${endDate}`);
     const creatorAccount = algosdk.mnemonicToSecretKey(creatorMnemonic);
     // create dapp
     const args = [stringToByteArray(team1),
@@ -334,7 +332,7 @@ class AutobookieCore {
    * @returns {string}
    */
   async setEscrow(mnemonic, dapp) {
-    console.log(`Updating application ${dapp.appId} with escrow address`);
+    console.log(`\nUpdating application ${dapp.appId} with escrow address`);
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     await this.#callAppNoOp(account, dapp.appId, [stringToByteArray('escrow'), algosdk.decodeAddress(dapp.escrow.addr).publicKey]);
     console.log('Successfully updated escrow address');
@@ -347,7 +345,7 @@ class AutobookieCore {
    * @param {number} limitDate
    */
   async setWinner(mnemonic, appId, winner, limitDate=undefined) {
-    console.log(`Updating application ${appId} with winner ${winner}`);
+    console.log(`\nUpdating application ${appId} with winner ${winner}`);
     const now =  Math.round(Date.now()/1000);
 
     if (limitDate) {
@@ -358,33 +356,8 @@ class AutobookieCore {
     }
 
     const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const response = await this.#callAppNoOp(account, appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
+    await this.#callAppNoOp(account, appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
     console.log('Successfully set winner');
-    console.log(response, '\n\n');
-  }
-
-  /**
-   * @param {string} mnemonic
-   * @param {AutobookieDapp} dapp
-   * @param {boolean} closeOut
-   */
-  async deleteDappByObject(mnemonic, dapp) {
-    console.log('WARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
-    // usdc
-    let info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    if (info.asset !== undefined && info.asset.amount !== undefined && info.asset.amount > 0) {
-      const usdcTxn = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, info.asset.amount);
-      await this.#sendSingleTxn(dapp.escrow.sk, usdcTxn);
-      info = await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    }
-    // algo
-    const params = await this.#getMinParams();
-    const txn0 = algosdk.makePaymentTxnWithSuggestedParams(dapp.escrow.addr, account.addr, 0, undefined, undefined, params);
-    const txn1 = algosdk.makeApplicationDeleteTxn(account.addr, params, dapp.appId);
-    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    console.log('Deleted appId: ', dapp.appId);
-    console.log('All done!');
   }
 
   /**
@@ -393,7 +366,7 @@ class AutobookieCore {
    * @param {boolean} closeOut
    */
   async deleteDappById(mnemonic, appId) {
-    console.log('WARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
+    console.log('\nWARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
@@ -401,7 +374,6 @@ class AutobookieCore {
     const {txId} = await this.client.sendRawTransaction(signedTxn).do();
     await algosdk.waitForConfirmation(this.client, txId, 20);
     console.log('Deleted appId: ', appId);
-    console.log('All done!');
   }
 
   /**
@@ -409,12 +381,13 @@ class AutobookieCore {
    * @param {number} appId
    */
   async fakeUserOptinApp(mnemonic, appId) {
-    console.log('Prepare Betting starting...');
+    console.log('\nOpting in application ...');
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
-    console.log('Prepare Betting complete!');
-    return this.#sendSingleTxn(account.sk, txn);
+    const response = this.#sendSingleTxn(account.sk, txn);
+    console.log('Opting in application complete!');
+    return response;
   }
 
   /**
@@ -426,7 +399,7 @@ class AutobookieCore {
    */
   async fakeUserBet(mnemonic, appId, amount, myTeam, escrowAddr) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
-    console.log(`${account.addr} is betting on ${myTeam} ${amount} USDC`);
+    console.log(`\n${account.addr} is betting on ${myTeam} ${amount} USDC`);
     const params = await this.#getMinParams();
     const txn0 = await this.#makeUsdcTransferTxn(account.addr, escrowAddr, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, [stringToByteArray('bet'), stringToByteArray(myTeam)]);
@@ -445,15 +418,11 @@ class AutobookieCore {
   async fakeUserClaim(mnemonic, dapp, myBet, myTeamTotal, otherTeamTotal) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const amount = this.#calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, dapp.fixedFee);
-    console.log('Claiming ' + amount + ' with account ' + account.addr);
-    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    console.log('\nClaiming ' + amount + ' with account ' + account.addr);
     const params = await this.#getMinParams();
     const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
     console.log('Claim complete!');
   }
 
@@ -466,16 +435,12 @@ class AutobookieCore {
   async fakeUserReclaim(mnemonic, dapp, myTotal, dueToCancel=false) {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const amount = this.#calculateReclaimAmount(myTotal, dueToCancel ? 0 : dapp.fixedFee);
-    console.log('Reclaiming ' + amount + ' with account ' + account.addr);
-    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    console.log('\nReclaiming ' + amount + ' with account ' + account.addr);
     const params = await this.#getMinParams();
     const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray(dueToCancel ? 'cancel': 'reclaim')]);
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
-    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
-    console.log('Reclaim complete!');
+    console.log('Reclaiming complete!');
   }
 
   ////////// private methods //////////
@@ -562,11 +527,10 @@ class AutobookieCore {
     const txId = txn.txID();
     await this.client.sendRawTransaction(signedTxn).do();
     await algosdk.waitForConfirmation(this.client, txId, 20);
-    const transactionResponse = await this.client.pendingTransactionInformation(txId).do();
-    const appId = transactionResponse['application-index'];
+    const response = await this.client.pendingTransactionInformation(txId).do();
+    const appId = response['application-index'];
     console.log('Created new app-id: ', appId);
-
-    return transactionResponse;
+    return response;
   }
 
   /**

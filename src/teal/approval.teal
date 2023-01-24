@@ -254,6 +254,11 @@ UserNoOp:
   ==
   bnz user_reclaim
 
+  txna ApplicationArgs 0
+  byte "cancel"
+  ==
+  bnz user_cancel
+
   err
 
   user_bet:
@@ -262,6 +267,8 @@ UserNoOp:
     callsub UserClaim
   user_reclaim:
     callsub UserReclaim
+  user_cancel:
+    callsub UserCancel
 
 
 UserBet:
@@ -584,7 +591,7 @@ UserReclaim:
   ==
   assert
 
-  gtxn 0 AssetSender
+  gtxn 0 Sender
   byte "Escrow"
   app_global_get
   ==
@@ -599,6 +606,52 @@ UserReclaim:
   byte "FixedFee"
   app_global_get
   +
+
+  int 0
+  byte "MyTotal1"
+  app_local_get
+  int 0
+  byte "MyTotal2"
+  app_local_get
+  +
+
+  ==
+  assert
+
+  callsub UserResetBet
+
+  int 1
+  return
+
+
+UserCancel:
+  txn NumAppArgs
+  int 1
+  ==
+  assert
+
+  global GroupSize
+  int 2
+  ==
+  assert
+
+  gtxn 0 TypeEnum
+  int axfer
+  ==
+  assert
+
+  gtxn 0 Sender
+  byte "Escrow"
+  app_global_get
+  ==
+  assert
+
+  gtxn 0 AssetReceiver
+  gtxn 1 Sender
+  ==
+  assert
+
+  gtxn 0 AssetAmount
 
   int 0
   byte "MyTotal1"

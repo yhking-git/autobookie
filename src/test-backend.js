@@ -51,13 +51,13 @@ async function test() {
   // await core.makeAccoutCanUseUsdc(USER1_MNEMONIC);
   // await core.makeAccoutCanUseUsdc(USER2_MNEMONIC);
 
-  // print assets info of admin and escrow
-  await core.getAccountAssetInfo(ADMIN_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-  await core.getAccountAssetInfo(ESCROW_ADDRESS, api.USDC_ASSET_ID_TESTNET);
+  console.log('\nPrint assets info of admin and escrow');
+  await core.getAccountAssetInfo(ADMIN_ADDRESS, core.usdcAssetId);
+  await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
 
   // 2. admin creates dapp
-  const limitDate = Math.round(Date.now()/1000) + 5*60;
-  const endDate = Math.round(Date.now()/1000) + 10*60;
+  const limitDate = Math.round(Date.now()/1000) + 3*60;
+  const endDate = Math.round(Date.now()/1000) + 5*60;
   const fixedFee = 100*1000;
   let dapp = await core.createDapp(ADMIN_MNEMONIC, ESCROW_MNEMONIC, 'team1', 'team2', limitDate, endDate, fixedFee);
 
@@ -65,9 +65,10 @@ async function test() {
   await core.fakeUserOptinApp(USER1_MNEMONIC, dapp.appId);
   await core.fakeUserOptinApp(USER2_MNEMONIC, dapp.appId);
 
-  // print assets info of users before betting
-  await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-  await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
+  console.log('\nPrint assets info of escrow and users before betting');
+  await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
+  await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId);
+  await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId);
 
   // 4. users bet
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
@@ -76,46 +77,46 @@ async function test() {
   await core.fakeUserBet(USER1_MNEMONIC, dapp.appId, 200*1000, 'team1', dapp.escrow.addr);
   await core.fakeUserBet(USER2_MNEMONIC, dapp.appId, 200*1000, 'team2', dapp.escrow.addr);
 
-  // print assets info of users after betting
-  await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-  await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-
-
-  if (true) { // admin will cancel event
-    api.inputString('All users will reclaim theirs');
-
-    // 5. all users reclaim theirs
-    await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-    await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-
-    await core.fakeUserReclaim(USER1_MNEMONIC, dapp, true);
-    await core.fakeUserReclaim(USER2_MNEMONIC, dapp, true);
-
-    await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-    await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-
-    // 6. admin deletes dapp
-    await core.deleteDappById(ADMIN_MNEMONIC, dapp.appId);
-
-    return;
-  }
-
-  api.inputString('Admin will set winner');
+  console.log('\nPrint assets info of escrow and users after betting');
+  await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
+  await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId);
+  await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId);
 
   // 5. admin sets winner to team2
   await core.setWinner(ADMIN_MNEMONIC, dapp.appId, 'team2', dapp.limitDate);
 
-  api.inputString('Waitting for the user2 who bet on winner to claim');
+  const cancelled = false;
+  if (cancelled) {
+    console.log('\nPrint assets info of escrow and users before reclaim');
+    await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
+    await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId);
+    await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId);
 
-  // 6. user2 claim his winnings
-  await core.fakeUserClaim(USER2_MNEMONIC, dapp, 200*1000, 200*1000, 800*1000);
+    // 6. all users reclaim theirs
+    await core.fakeUserReclaim(USER1_MNEMONIC, dapp, 800*1000, true);
+    await core.fakeUserReclaim(USER2_MNEMONIC, dapp, 200*1000, true);
 
-  // print assets info of users after betting
-  await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
-  await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
+    console.log('\nPrint assets info of escrow and users after reclaim');
+    await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
+    await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId);
+    await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId);
+  } else {
+    console.log('\nPrint assets info of escrow and user1 before claim');
+    await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
+    await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId);
+
+    // 6. user2 claim his(her) winnings
+    await core.fakeUserClaim(USER2_MNEMONIC, dapp, 200*1000, 200*1000, 800*1000);
+
+    console.log('\nPrint assets info of escrow and user1 after claim');
+    await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId);
+    await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId);
+  }
 
   // 7. admin deletes dapp
   await core.deleteDappById(ADMIN_MNEMONIC, dapp.appId);
+
+  console.log('\n\nAll done!\n\n')
 }
 
 test();

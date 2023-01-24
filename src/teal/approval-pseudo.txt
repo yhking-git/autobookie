@@ -83,7 +83,7 @@ if txn.OnCompletion == avm.NoOp
 			assert local.MyBettingCount < 6
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
-			assert gtxn[0].Receiver == global.Escrow
+			assert gtxn[0].AssetReceiver == global.Escrow
 			assert gtxn[0].AssetAmount > global.FixedFee
 			assert txn.ApplicationArgs[1] == global.Team1 || txn.ApplicationArgs[1] == global.Team2
 
@@ -123,7 +123,7 @@ if txn.OnCompletion == avm.NoOp
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Sender == global.Escrow
-			assert gtxn[0].Receiver == gtxn[1].Sender
+			assert gtxn[0].AssetReceiver == gtxn[1].Sender
 
 			if global.Winner == global.Team1
 				TeamTotal = global.Total1
@@ -150,11 +150,10 @@ if txn.OnCompletion == avm.NoOp
 			assert txn.NumAppArgs == 1
 			assert LatestTimestamp > global.EndDate
 			assert "" == global.Winner
-
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Sender == global.Escrow
-			assert gtxn[0].Receiver == gtxn[1].Sender
+			assert gtxn[0].AssetReceiver == gtxn[1].Sender
 			assert gtxn[0].Amount + global.FixedFee == (local.MyTotal1 + local.MyTotal2)
 
 			local.MyBet0 = 0
@@ -169,11 +168,10 @@ if txn.OnCompletion == avm.NoOp
 			return 1
 		elsif txn.ApplicationArgs[0] == "cancel"
 			assert txn.NumAppArgs == 1
-
 			assert avm.GroupSize == 2
 			assert gtxn[0].TypeEnum == avm.AssetTransfer
 			assert gtxn[0].Sender == global.Escrow
-			assert gtxn[0].Receiver == gtxn[1].Sender
+			assert gtxn[0].AssetReceiver == gtxn[1].Sender
 			assert gtxn[0].Amount == (local.MyTotal1 + local.MyTotal2)
 
 			local.MyBet0 = 0
