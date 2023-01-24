@@ -334,10 +334,10 @@ class AutobookieCore {
    * @returns {string}
    */
   async setEscrow(mnemonic, dapp) {
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
     console.log(`Updating application ${dapp.appId} with escrow address`);
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
     await this.#callAppNoOp(account, dapp.appId, [stringToByteArray('escrow'), algosdk.decodeAddress(dapp.escrow.addr).publicKey]);
-    console.log('Successfully updated escrow address:');
+    console.log('Successfully updated escrow address');
   }
 
   /**
@@ -359,7 +359,7 @@ class AutobookieCore {
 
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const response = await this.#callAppNoOp(account, appId, [stringToByteArray('winner'), stringToByteArray(winner)]);
-    console.log('Successfully update application:');
+    console.log('Successfully set winner');
     console.log(response, '\n\n');
   }
 
@@ -404,13 +404,6 @@ class AutobookieCore {
     console.log('All done!');
   }
 
-  /**
-   * @param {string} mnemonic
-   * @param {AutobookieDapp} dapp
-  */
-  async cancelDapp(mnemonic, dapp) {
-
-  }
   /**
    * @param {string} mnemonic
    * @param {number} appId
@@ -467,9 +460,22 @@ class AutobookieCore {
   /**
    * @param {string} mnemonic
    * @param {AutobookieDapp} dapp
+   * @param {number} myTotal
+   * @param {boolean} dueToCancel
   */
-  async fakeUserReclaimFromCanceledDapp(mnemonic, dapp) {
-
+  async fakeUserReclaim(mnemonic, dapp, myTotal, dueToCancel=false) {
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    const amount = this.#calculateReclaimAmount(myTotal, dueToCancel ? 0 : dapp.fixedFee);
+    console.log('Reclaiming ' + amount + ' with account ' + account.addr);
+    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    const params = await this.#getMinParams();
+    const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
+    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray(dueToCancel ? 'cancel': 'reclaim')]);
+    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
+    await this.getAccountAssetInfo(dapp.escrow.addr, this.usdcAssetId);
+    await this.getAccountAssetInfo(account.addr, this.usdcAssetId);
+    console.log('Reclaim complete!');
   }
 
   ////////// private methods //////////
@@ -602,6 +608,16 @@ class AutobookieCore {
    */
   #calculateClaimAmount(myBet, myTeamTotal, otherTeamTotal, fee) {
     return Math.floor(myBet / myTeamTotal * (myTeamTotal + otherTeamTotal) - fee)
+  }
+
+  /**
+   * Helper function used to calculate how much a user can reclaim.
+   * @param {number} myTotal
+   * @param {number} fee
+   * @returns {number} The amount a user may claim.
+   */
+  #calculateReclaimAmount(myTotal, fee) {
+    return myTotal - fee;
   }
 
   /**

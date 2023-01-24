@@ -58,7 +58,8 @@ async function test() {
   // 2. admin creates dapp
   const limitDate = Math.round(Date.now()/1000) + 5*60;
   const endDate = Math.round(Date.now()/1000) + 10*60;
-  let dapp = await core.createDapp(ADMIN_MNEMONIC, ESCROW_MNEMONIC, 'team1', 'team2', limitDate, endDate, 100*1000);
+  const fixedFee = 100*1000;
+  let dapp = await core.createDapp(ADMIN_MNEMONIC, ESCROW_MNEMONIC, 'team1', 'team2', limitDate, endDate, fixedFee);
 
   // 3. users optin dapp
   await core.fakeUserOptinApp(USER1_MNEMONIC, dapp.appId);
@@ -81,22 +82,19 @@ async function test() {
 
 
   if (true) { // admin will cancel event
-    api.inputString('Admin will make dapp canceled');
+    api.inputString('All users will reclaim theirs');
 
-    // 5. admin makes dapp canceled
-    await core.cancelDapp(ADMIN_MNEMONIC, dapp);
-
-    // 6. all users reclaim theirs
+    // 5. all users reclaim theirs
     await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
     await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
 
-    await core.fakeUserReclaimFromCanceledDapp(USER1_MNEMONIC, dapp);
-    await core.fakeUserReclaimFromCanceledDapp(USER2_MNEMONIC, dapp);
+    await core.fakeUserReclaim(USER1_MNEMONIC, dapp, true);
+    await core.fakeUserReclaim(USER2_MNEMONIC, dapp, true);
 
     await core.getAccountAssetInfo(USER1_ADDRESS, api.USDC_ASSET_ID_TESTNET);
     await core.getAccountAssetInfo(USER2_ADDRESS, api.USDC_ASSET_ID_TESTNET);
 
-    // 7. admin deletes dapp
+    // 6. admin deletes dapp
     await core.deleteDappById(ADMIN_MNEMONIC, dapp.appId);
 
     return;
