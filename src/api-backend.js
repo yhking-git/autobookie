@@ -133,7 +133,6 @@ class AutobookieCore {
    */
   async getAppInfoGlobal(appId)  {
     const rawInfo = await this.indexer?.lookupApplications(appId).do();
-    // console.log(JSON.stringify(rawInfo, undefined, 2));
 
     let info =  {};
 
@@ -181,7 +180,6 @@ class AutobookieCore {
         });
       }
     }
-    // console.log(JSON.stringify(info, undefined, 2));
 
     return info;
   }
@@ -193,7 +191,6 @@ class AutobookieCore {
    */
   async getAppInfoLocal(address, appId) {
     const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
-    // console.log(JSON.stringify(rawInfo, undefined, 2));
 
     let info =  {};
 
@@ -242,7 +239,6 @@ class AutobookieCore {
         }
       });
     }
-    // console.log(JSON.stringify(info, undefined, 2));
 
     return info;
   }
@@ -260,13 +256,11 @@ class AutobookieCore {
     for (let idx = 0; idx < accountInfo['assets'].length; idx++) {
         const scrutinizedAsset = accountInfo['assets'][idx];
         if (scrutinizedAsset['asset-id'] === assetId) {
-            // let myassetinfo = JSON.stringify(scrutinizedAsset, undefined, 2);
             assetInfo.asset = scrutinizedAsset;
             break;
         }
     }
 
-    console.log('info = ' + JSON.stringify(assetInfo, undefined, 2));
     return assetInfo
   }
 
@@ -313,10 +307,8 @@ class AutobookieCore {
     console.log('escrow = ', escrow);
 
     // console.log('Funding escrow account');
-    // await this.getAccountAssetInfo(escrowAccount.addr, this.usdcAssetId);
     // const txn = algosdk.makePaymentTxnWithSuggestedParams(creatorAccount.addr, escrowAccount.addr, 1000000, undefined, undefined, await this.#getMinParams());
     // await this.#sendSingleTxn(creatorAccount.sk, txn);
-    // await this.getAccountAssetInfo(escrowAccount.addr, 0);
     // console.log('Funding escrow account done');
 
     await this.makeAccoutCanUseUsdc(escrow.mnemonic);
@@ -385,7 +377,7 @@ class AutobookieCore {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationOptInTxn(account.addr, params, appId);
-    const response = this.#sendSingleTxn(account.sk, txn);
+    const response = await this.#sendSingleTxn(account.sk, txn);
     console.log('Opting in application complete!');
     return response;
   }
@@ -433,14 +425,20 @@ class AutobookieCore {
    * @param {boolean} dueToCancel
   */
   async fakeUserReclaim(mnemonic, dapp, myTotal, dueToCancel=false) {
-    const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const amount = this.#calculateReclaimAmount(myTotal, dueToCancel ? 0 : dapp.fixedFee);
-    console.log('\nReclaiming ' + amount + ' with account ' + account.addr);
-    const params = await this.#getMinParams();
-    const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
-    const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray(dueToCancel ? 'cancel': 'reclaim')]);
-    await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    console.log('Reclaiming complete!');
+    try {
+      const account = algosdk.mnemonicToSecretKey(mnemonic);
+      const amount = this.#calculateReclaimAmount(myTotal, dueToCancel ? 0 : dapp.fixedFee);
+      console.log('\nReclaiming ' + amount + ' with account ' + account.addr);
+      const params = await this.#getMinParams();
+      const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
+      const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray(dueToCancel ? 'cancel': 'reclaim')]);
+      await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
+      console.log('Reclaiming complete!');
+      return true;
+    } catch (error) {
+      console.warn('error = ', error);
+      return false;
+    }
   }
 
   ////////// private methods //////////
