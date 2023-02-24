@@ -107,7 +107,7 @@ class AutobookieCore {
     /** @type {string} */
     this.ledgerName = ledgerName;
     /** @type {algosdk.Algodv2} */
-    this.client = undefined;
+    this.algodClient = undefined;
     /** @type {algosdk.Indexer} */
     this.indexer = undefined;
     /** @type {number} */
@@ -115,14 +115,14 @@ class AutobookieCore {
 
     if (ledgerName === 'Sandbox') {
       this.ledgerName = 'TestNet';
-      this.client = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
+      this.algodClient = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
       this.usdcAssetId = USDC_ASSET_ID_TESTNET;
     } else if (ledgerName === 'TestNet') {
-      this.client = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
+      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
       this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
       this.usdcAssetId = USDC_ASSET_ID_TESTNET;
     } else if (ledgerName  === 'MainNet') {
-      this.client = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
+      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
       this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
       this.usdcAssetId = USDC_ASSET_ID_MAINNET;
     }
@@ -190,7 +190,7 @@ class AutobookieCore {
    * @return empty object {} if address does not optin app
    */
   async getAppInfoLocal(address, appId) {
-    const rawInfo = await this.client.accountApplicationInformation(address, appId).do();
+    const rawInfo = await this.algodClient.accountApplicationInformation(address, appId).do();
 
     let info =  {};
 
@@ -249,7 +249,7 @@ class AutobookieCore {
    * @param {number} assetId
    */
   async getAccountAssetInfo(addr, assetId) {
-    const accountInfo = await this.client.accountInformation(addr).do();
+    const accountInfo = await this.algodClient.accountInformation(addr).do();
     let assetInfo = {};
     assetInfo['address'] = addr;
     assetInfo['algo'] = accountInfo['amount'];
@@ -363,8 +363,8 @@ class AutobookieCore {
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
     const signedTxn = txn.signTxn(account.sk);
-    const {txId} = await this.client.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.client, txId, 20);
+    const {txId} = await this.algodClient.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
     console.log('Deleted appId: ', appId);
   }
 
@@ -448,7 +448,7 @@ class AutobookieCore {
    */
   async #compileTealString(tealString) {
     const src = tealString || '#pragma version 2\nint 1';
-    const compiled = await this.client.compile(src).do();
+    const compiled = await this.algodClient.compile(src).do();
     return new Uint8Array(Buffer.from(compiled.result, 'base64'));
   }
 
@@ -489,9 +489,9 @@ class AutobookieCore {
     const txn = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, args);
     const signedTxn = txn.signTxn(account.sk);
     const txId = txn.txID();
-    await this.client.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.client, txId, 20)
-    const response = await this.client.pendingTransactionInformation(txId).do();
+    await this.algodClient.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algodClient, txId, 20)
+    const response = await this.algodClient.pendingTransactionInformation(txId).do();
 
     return response
   }
@@ -523,9 +523,9 @@ class AutobookieCore {
     );
     const signedTxn = txn.signTxn(account.sk);
     const txId = txn.txID();
-    await this.client.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.client, txId, 20);
-    const response = await this.client.pendingTransactionInformation(txId).do();
+    await this.algodClient.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
+    const response = await this.algodClient.pendingTransactionInformation(txId).do();
     const appId = response['application-index'];
     console.log('Created new app-id: ', appId);
     return response;
@@ -538,9 +538,9 @@ class AutobookieCore {
   async #sendSingleTxn(sk, txn) {
     const signedTxn = txn.signTxn(sk);
     const txId = txn.txID();
-    await this.client.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.client, txId, 20);
-    return await this.client.pendingTransactionInformation(txId).do();
+    await this.algodClient.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
+    return await this.algodClient.pendingTransactionInformation(txId).do();
   }
 
   /**
@@ -555,9 +555,9 @@ class AutobookieCore {
     txn1.group = gid;
     const signedTxn0 = txn0.signTxn(sk0);
     const signedTxn1 = txn1.signTxn(sk1);
-    const {txId} = await this.client.sendRawTransaction([signedTxn0, signedTxn1]).do();
-    await algosdk.waitForConfirmation(this.client, txId, 20);
-    await this.client.pendingTransactionInformation(txId).do();
+    const {txId} = await this.algodClient.sendRawTransaction([signedTxn0, signedTxn1]).do();
+    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
+    await this.algodClient.pendingTransactionInformation(txId).do();
   }
 
   /**
@@ -586,7 +586,7 @@ class AutobookieCore {
    * Query the blockchain for suggested params, and set flat fee to True and the fee to the minimum.
    */
   async #getMinParams() {
-    let suggestedParams = await this.client.getTransactionParams().do();
+    let suggestedParams = await this.algodClient.getTransactionParams().do();
     suggestedParams.flatFee  = true;
     suggestedParams.fee = algosdk.ALGORAND_MIN_TX_FEE;
 
