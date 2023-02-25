@@ -1,7 +1,8 @@
 const algosdk = require('algosdk');
 const fs = require('fs');
 const { Base64 } = require('js-base64');
-const prompt = require("prompt-sync")({ sigint: true });
+const prompt = require('prompt-sync')({ sigint: true });
+const deflex = require('@deflex/deflex-sdk-js');
 
 const USDC_ASSET_ID_TESTNET = 10458941;
 const USDC_ASSET_ID_MAINNET = 31566704;
@@ -106,6 +107,14 @@ class AutobookieCore {
               port='') {
     /** @type {string} */
     this.ledgerName = ledgerName;
+    /** @type {string} */
+    this.xApiKey = xApiKey;
+    /** @type {string} */
+    this.clientBaseServer = clientBaseServer;
+    /** @type {string} */
+    this.indexerBaseServer = indexerBaseServer;
+    /** @type {string|number} */
+    this.port = port;
     /** @type {algosdk.Algodv2} */
     this.algodClient = undefined;
     /** @type {algosdk.Indexer} */
@@ -113,17 +122,19 @@ class AutobookieCore {
     /** @type {number} */
     this.usdcAssetId = undefined;
 
-    if (ledgerName === 'Sandbox') {
-      this.ledgerName = 'TestNet';
-      this.algodClient = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
+    // if (ledgerName === 'Sandbox') {
+    //   this.ledgerName = 'TestNet';
+    //   this.algodClient = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
+    //   this.usdcAssetId = USDC_ASSET_ID_TESTNET;
+    // }
+  
+    if (this.ledgerName === 'TestNet') {
+      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': this.xApiKey }, this.clientBaseServer, this.port);
+      this.indexer = new algosdk.Indexer( { 'X-API-Key': this.xApiKey }, this.indexerBaseServer, this.port);
       this.usdcAssetId = USDC_ASSET_ID_TESTNET;
-    } else if (ledgerName === 'TestNet') {
-      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
-      this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
-      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
-    } else if (ledgerName  === 'MainNet') {
-      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': xApiKey }, clientBaseServer, port);
-      this.indexer = new algosdk.Indexer( { 'X-API-Key': xApiKey }, indexerBaseServer, port);
+    } else if (this.ledgerName  === 'MainNet') {
+      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': this.xApiKey }, this.clientBaseServer, this.port);
+      this.indexer = new algosdk.Indexer( { 'X-API-Key': this.xApiKey }, this.indexerBaseServer, this.port);
       this.usdcAssetId = USDC_ASSET_ID_MAINNET;
     }
   }
