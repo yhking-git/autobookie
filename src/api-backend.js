@@ -56,6 +56,60 @@ function sleep(seconds) {
   return new Promise(resolve => setTimeout(resolve, seconds*1000));
 }
 
+
+/**
+ * @param {string} mnemonic 
+ * @param {number} fromASAId 
+ * @param {number} toASAId 
+ * @param {number} amount 
+ * @param {AutobookieCore|undefined} core
+ */
+async function exchange(mnemonic, fromASAId, toASAId, amount, core=undefined) {
+  const uri = core ? core.clientUri : 'https://node.testnet.algoexplorerapi.io';
+  const token = core ? core.token : '';
+  const sender = algosdk.mnemonicToSecretKey(mnemonic);
+  const port = core ? core.port : '';
+  const algod = core ? core.algod : new algosdk.Algodv2(token, uri, '');
+  const chain = core ? core.chain : deflex.constants.CHAIN_TESTNET;
+  const client = chain === deflex.constants.CHAIN_MAINNET ? 
+    deflex.DeflexOrderRouterClient.fetchMainnetClient(uri, token, port, sender.addr ) :
+    deflex.DeflexOrderRouterClient.fetchTestnetClient(uri, token, port, sender.addr );
+
+  const quote = await client.getFixedInputSwapQuote(fromASAId, toASAId, amount);
+  const params = await algod.getTransactionParams().do();
+
+	const requiredAppOptIns = quote.requiredAppOptIns
+
+	// opt into required app for swap
+	const accountInfo = await algod.accountInformation(sender.addr).do()
+	const optedInAppIds = 'apps-local-state' in accountInfo ? accountInfo['apps-local-state'].map((state) => parseInt(state.id)) : []
+	for (let i = 0; i < requiredAppOptIns.length; i++) {
+		const requiredAppId = requiredAppOptIns[i]
+		if (!optedInAppIds.includes(requiredAppId)) {
+			const appOptInTxn = algosdk.makeApplicationOptInTxn(sender.addr, params, requiredAppId)
+			const signedTxn = appOptInTxn.signTxn(sender.sk)
+			await algod
+				.sendRawTransaction(signedTxn)
+				.do();
+		}
+	}
+	const txnGroup = await client.getSwapQuoteTransactions(sender.addr, quote, 5)
+
+	const signedTxns = txnGroup.txns.map((txn) => {
+		if (txn.logicSigBlob !== false) {
+			return txn.logicSigBlob
+		} else {
+			let bytes = new Uint8Array(Buffer.from(txn.data, 'base64'))
+			const decoded = algosdk.decodeUnsignedTransaction(bytes)
+			return algosdk.signTransaction(decoded, sender.sk).blob
+		}
+	})
+	const {txId} = await algod
+		.sendRawTransaction(signedTxns)
+		.do();
+	console.log(txId)
+}
+
 class AutobookieDapp {
   /**
    * @param {number} appId
@@ -94,48 +148,51 @@ class AutobookieDapp {
  */
 class AutobookieCore {
   /**
-   * @param {string} ledgerName 'Sandbox'|'TestNet'|'MainNet'
+   * @param {string} chain 'Sandbox'|'TestNet'|'MainNet'
    * @param {string} xApiKey
    * @param {string} clientBaseServer
    * @param {string} indexerBaseServer
    * @param {string|number} port
    */
-  constructor(ledgerName,
+  constructor(chain,
               xApiKey,
               clientBaseServer,
               indexerBaseServer,
               port='') {
     /** @type {string} */
-    this.ledgerName = ledgerName;
+    this.chain = chain.toLowerCase();
     /** @type {string} */
     this.xApiKey = xApiKey;
+    /** @type {CustomTokenHeader} */
+    this.token = { 'X-API-Key': this.xApiKey };
     /** @type {string} */
-    this.clientBaseServer = clientBaseServer;
+    this.clientUri = clientBaseServer;
     /** @type {string} */
-    this.indexerBaseServer = indexerBaseServer;
+    this.indexerUri = indexerBaseServer;
     /** @type {string|number} */
     this.port = port;
     /** @type {algosdk.Algodv2} */
-    this.algodClient = undefined;
+    this.algod = undefined;
     /** @type {algosdk.Indexer} */
     this.indexer = undefined;
     /** @type {number} */
     this.usdcAssetId = undefined;
 
-    // if (ledgerName === 'Sandbox') {
+    // if (ledgerName === 'sandbox') {
     //   this.ledgerName = 'TestNet';
     //   this.algodClient = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
     //   this.usdcAssetId = USDC_ASSET_ID_TESTNET;
     // }
   
-    if (this.ledgerName === 'TestNet') {
-      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': this.xApiKey }, this.clientBaseServer, this.port);
-      this.indexer = new algosdk.Indexer( { 'X-API-Key': this.xApiKey }, this.indexerBaseServer, this.port);
-      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
-    } else if (this.ledgerName  === 'MainNet') {
-      this.algodClient = new algosdk.Algodv2({ 'X-API-Key': this.xApiKey }, this.clientBaseServer, this.port);
-      this.indexer = new algosdk.Indexer( { 'X-API-Key': this.xApiKey }, this.indexerBaseServer, this.port);
+   
+    if (this.chain  === 'mainnet') {
+      this.algod = new algosdk.Algodv2(this.token, this.clientUri, this.port);
+      this.indexer = new algosdk.Indexer( this.token, this.indexerUri, this.port);
       this.usdcAssetId = USDC_ASSET_ID_MAINNET;
+    } else if (this.chain === 'testnet') {
+      this.algod = new algosdk.Algodv2(this.token, this.clientUri, this.port);
+      this.indexer = new algosdk.Indexer( this.token, this.indexerUri, this.port);
+      this.usdcAssetId = USDC_ASSET_ID_TESTNET;
     }
   }
 
@@ -201,7 +258,7 @@ class AutobookieCore {
    * @return empty object {} if address does not optin app
    */
   async getAppInfoLocal(address, appId) {
-    const rawInfo = await this.algodClient.accountApplicationInformation(address, appId).do();
+    const rawInfo = await this.algod.accountApplicationInformation(address, appId).do();
 
     let info =  {};
 
@@ -260,7 +317,7 @@ class AutobookieCore {
    * @param {number} assetId
    */
   async getAccountAssetInfo(addr, assetId) {
-    const accountInfo = await this.algodClient.accountInformation(addr).do();
+    const accountInfo = await this.algod.accountInformation(addr).do();
     let assetInfo = {};
     assetInfo['address'] = addr;
     assetInfo['algo'] = accountInfo['amount'];
@@ -374,8 +431,8 @@ class AutobookieCore {
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
     const signedTxn = txn.signTxn(account.sk);
-    const {txId} = await this.algodClient.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
+    const {txId} = await this.algod.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algod, txId, 20);
     console.log('Deleted appId: ', appId);
   }
 
@@ -459,7 +516,7 @@ class AutobookieCore {
    */
   async #compileTealString(tealString) {
     const src = tealString || '#pragma version 2\nint 1';
-    const compiled = await this.algodClient.compile(src).do();
+    const compiled = await this.algod.compile(src).do();
     return new Uint8Array(Buffer.from(compiled.result, 'base64'));
   }
 
@@ -500,9 +557,9 @@ class AutobookieCore {
     const txn = algosdk.makeApplicationNoOpTxn(account.addr, params, appId, args);
     const signedTxn = txn.signTxn(account.sk);
     const txId = txn.txID();
-    await this.algodClient.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.algodClient, txId, 20)
-    const response = await this.algodClient.pendingTransactionInformation(txId).do();
+    await this.algod.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algod, txId, 20)
+    const response = await this.algod.pendingTransactionInformation(txId).do();
 
     return response
   }
@@ -534,9 +591,9 @@ class AutobookieCore {
     );
     const signedTxn = txn.signTxn(account.sk);
     const txId = txn.txID();
-    await this.algodClient.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
-    const response = await this.algodClient.pendingTransactionInformation(txId).do();
+    await this.algod.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algod, txId, 20);
+    const response = await this.algod.pendingTransactionInformation(txId).do();
     const appId = response['application-index'];
     console.log('Created new app-id: ', appId);
     return response;
@@ -549,9 +606,9 @@ class AutobookieCore {
   async #sendSingleTxn(sk, txn) {
     const signedTxn = txn.signTxn(sk);
     const txId = txn.txID();
-    await this.algodClient.sendRawTransaction(signedTxn).do();
-    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
-    return await this.algodClient.pendingTransactionInformation(txId).do();
+    await this.algod.sendRawTransaction(signedTxn).do();
+    await algosdk.waitForConfirmation(this.algod, txId, 20);
+    return await this.algod.pendingTransactionInformation(txId).do();
   }
 
   /**
@@ -566,9 +623,9 @@ class AutobookieCore {
     txn1.group = gid;
     const signedTxn0 = txn0.signTxn(sk0);
     const signedTxn1 = txn1.signTxn(sk1);
-    const {txId} = await this.algodClient.sendRawTransaction([signedTxn0, signedTxn1]).do();
-    await algosdk.waitForConfirmation(this.algodClient, txId, 20);
-    await this.algodClient.pendingTransactionInformation(txId).do();
+    const {txId} = await this.algod.sendRawTransaction([signedTxn0, signedTxn1]).do();
+    await algosdk.waitForConfirmation(this.algod, txId, 20);
+    await this.algod.pendingTransactionInformation(txId).do();
   }
 
   /**
@@ -597,7 +654,7 @@ class AutobookieCore {
    * Query the blockchain for suggested params, and set flat fee to True and the fee to the minimum.
    */
   async #getMinParams() {
-    let suggestedParams = await this.algodClient.getTransactionParams().do();
+    let suggestedParams = await this.algod.getTransactionParams().do();
     suggestedParams.flatFee  = true;
     suggestedParams.fee = algosdk.ALGORAND_MIN_TX_FEE;
 
@@ -611,6 +668,7 @@ module.exports = {
   AutobookieDapp,
   inputString,
   stringToTimestamp,
+  exchange,
   USDC_ASSET_ID_TESTNET,
   USDC_ASSET_ID_MAINNET,
 }

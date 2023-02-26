@@ -32,15 +32,15 @@ async function test() {
 
 
   // 1. Initialize the Core
-  // let core = new api.AutobookieCore('Sandbox',
+  // let core = new api.AutobookieCore('sandbox',
   //                                   undefined,
   //                                   undefined,
   //                                   undefined);
-  let core = new api.AutobookieCore('TestNet',
+  let core = new api.AutobookieCore('testnet',
                                     'lxbjS3nPrM94Xt1KyNv7iIFlZTURUtX3Lc3WFLqc',
                                     'https://testnet-algorand.api.purestake.io/ps2',
                                     'https://testnet-algorand.api.purestake.io/idx2');
-  // let core = new api.AutobookieCore('MainNet',
+  // let core = new api.AutobookieCore('mainnet',
   //                                   'lxbjS3nPrM94Xt1KyNv7iIFlZTURUtX3Lc3WFLqc',
   //                                   'https://mainnet-algorand.api.purestake.io/ps2',
   //                                   'https:/mainnet-algorand.api.purestake.io/idx2');
