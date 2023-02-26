@@ -69,44 +69,55 @@ function sleep(seconds) {
  * @param {string|number} port
  */
 async function exchange(chain, mnemonic, fromASAId, toASAId, amount, token, uri, port) {
-  const sender = algosdk.mnemonicToSecretKey(mnemonic);
-  const client = chain === deflex.constants.CHAIN_MAINNET ? 
-    deflex.DeflexOrderRouterClient.fetchMainnetClient(uri, token, port, sender.addr ) :
-    deflex.DeflexOrderRouterClient.fetchTestnetClient(uri, token, port, sender.addr );
-  const quote = await client.getFixedInputSwapQuote(fromASAId, toASAId, amount);
-  const algod = new algosdk.Algodv2(token, uri, port);
-  const params = await algod.getTransactionParams().do();
+  try {
+    const sender = algosdk.mnemonicToSecretKey(mnemonic);
+    const client = chain === deflex.constants.CHAIN_MAINNET ? 
+      deflex.DeflexOrderRouterClient.fetchMainnetClient(uri, token, port, /* sender.addr */) :
+      deflex.DeflexOrderRouterClient.fetchTestnetClient(uri, token, port, /* sender.addr */);
+    const quote = await client.getFixedInputSwapQuote(fromASAId, toASAId, amount);
+    const algod = new algosdk.Algodv2(token, uri, port);
+    const params = await algod.getTransactionParams().do();
 
-	const requiredAppOptIns = quote.requiredAppOptIns
+    const requiredAppOptIns = quote.requiredAppOptIns
 
-	// opt into required app for swap
-	const accountInfo = await algod.accountInformation(sender.addr).do()
-	const optedInAppIds = 'apps-local-state' in accountInfo ? accountInfo['apps-local-state'].map((state) => parseInt(state.id)) : []
-	for (let i = 0; i < requiredAppOptIns.length; i++) {
-		const requiredAppId = requiredAppOptIns[i]
-		if (!optedInAppIds.includes(requiredAppId)) {
-			const appOptInTxn = algosdk.makeApplicationOptInTxn(sender.addr, params, requiredAppId)
-			const signedTxn = appOptInTxn.signTxn(sender.sk)
-			await algod
-				.sendRawTransaction(signedTxn)
-				.do();
-		}
-	}
-	const txnGroup = await client.getSwapQuoteTransactions(sender.addr, quote, 5)
+    // opt into required app for swap
+    const accountInfo = await algod.accountInformation(sender.addr).do()
+    // console.log('accountInfo=', accountInfo)
+    const optedInAppIds = 'apps-local-state' in accountInfo ? accountInfo['apps-local-state'].map((state) => parseInt(state.id)) : []
+    for (let i = 0; i < requiredAppOptIns.length; i++) {
+      const requiredAppId = requiredAppOptIns[i]
+      if (!optedInAppIds.includes(requiredAppId)) {
+        const appOptInTxn = algosdk.makeApplicationOptInTxn(sender.addr, params, requiredAppId)
+        const signedTxn = appOptInTxn.signTxn(sender.sk)
+        await algod
+          .sendRawTransaction(signedTxn)
+          .do();
+      }
+    }
 
-	const signedTxns = txnGroup.txns.map((txn) => {
-		if (txn.logicSigBlob !== false) {
-			return txn.logicSigBlob
-		} else {
-			let bytes = new Uint8Array(Buffer.from(txn.data, 'base64'))
-			const decoded = algosdk.decodeUnsignedTransaction(bytes)
-			return algosdk.signTransaction(decoded, sender.sk).blob
-		}
-	})
-	const {txId} = await algod
-		.sendRawTransaction(signedTxns)
-		.do();
-	console.log(txId)
+    const slippage = 0.5
+    const txnGroup = await client.getSwapQuoteTransactions(sender.addr, quote, slippage)
+    const signedTxns = txnGroup.txns.map((txn) => {
+      if (txn.logicSigBlob !== false) {
+        return txn.logicSigBlob
+      } else {
+        let bytes = new Uint8Array(Buffer.from(txn.data, 'base64'))
+        const decoded = algosdk.decodeUnsignedTransaction(bytes)
+        return algosdk.signTransaction(decoded, sender.sk).blob
+      }
+    })
+    const {txId} = await algod
+      .sendRawTransaction(signedTxns)
+      .do();
+    console.log('txId=', txId)
+    // console.log('accountInfo=', accountInfo)
+
+    return true;
+
+  } catch(error) {
+    console.warn('error = ', error);
+    return false;
+  }
 }
 
 class AutobookieDapp {
@@ -182,8 +193,8 @@ class AutobookieCore {
     //   this.algodClient = new algosdk.Algodv2('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'http://localhost', 4001);
     //   this.usdcAssetId = USDC_ASSET_ID_TESTNET;
     // }
-  
-   
+
+
     if (this.chain  === 'mainnet') {
       this.algod = new algosdk.Algodv2(this.token, this.clientUri, this.port);
       this.indexer = new algosdk.Indexer( this.token, this.indexerUri, this.port);
