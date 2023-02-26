@@ -14,7 +14,12 @@
 	npm install
 
 5. to test backend
-	node test-backend
+5.1 test app
+	npm start
+5.2 test app with canceling
+	npm start cancel
+5.3 test exchanging
+	npm start ex
 
 6. to test frontend
 	npm start
