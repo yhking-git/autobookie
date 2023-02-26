@@ -52,6 +52,10 @@ async function test() {
   // await core.makeAccoutCanUseUsdc(USER2_MNEMONIC);
 
 
+  // api.exchange('testnet', ESCROW_MNEMONIC, api.ALGO_ASSET_ID, api.USDC_ASSET_ID_TESTNET, 1000000, core.token, core.clientUri, core.port);
+  api.exchange('testnet', ESCROW_MNEMONIC, 0, 10458941, 1000000, '', 'https://node.testnet.algoexplorerapi.io');
+
+
   console.log('\nPrint assets info of admin and escrow\n');
   console.log('admin assets = ', await core.getAccountAssetInfo(ADMIN_ADDRESS, core.usdcAssetId));
   console.log('escrow assets = ', await core.getAccountAssetInfo(ESCROW_ADDRESS, core.usdcAssetId));

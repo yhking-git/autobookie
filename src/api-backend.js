@@ -4,6 +4,7 @@ const { Base64 } = require('js-base64');
 const prompt = require('prompt-sync')({ sigint: true });
 const deflex = require('@deflex/deflex-sdk-js');
 
+const ALGO_ASSET_ID = 0;
 const USDC_ASSET_ID_TESTNET = 10458941;
 const USDC_ASSET_ID_MAINNET = 31566704;
 
@@ -58,24 +59,22 @@ function sleep(seconds) {
 
 
 /**
- * @param {string} mnemonic 
- * @param {number} fromASAId 
- * @param {number} toASAId 
- * @param {number} amount 
- * @param {AutobookieCore|undefined} core
+ * @param {string} chain
+ * @param {string} mnemonic
+ * @param {number} fromASAId
+ * @param {number} toASAId
+ * @param {number} amount
+ * @param {CustomTokenHeader|string} token
+ * @param {string} uri
+ * @param {string|number} port
  */
-async function exchange(mnemonic, fromASAId, toASAId, amount, core=undefined) {
-  const uri = core ? core.clientUri : 'https://node.testnet.algoexplorerapi.io';
-  const token = core ? core.token : '';
+async function exchange(chain, mnemonic, fromASAId, toASAId, amount, token, uri, port) {
   const sender = algosdk.mnemonicToSecretKey(mnemonic);
-  const port = core ? core.port : '';
-  const algod = core ? core.algod : new algosdk.Algodv2(token, uri, '');
-  const chain = core ? core.chain : deflex.constants.CHAIN_TESTNET;
   const client = chain === deflex.constants.CHAIN_MAINNET ? 
     deflex.DeflexOrderRouterClient.fetchMainnetClient(uri, token, port, sender.addr ) :
     deflex.DeflexOrderRouterClient.fetchTestnetClient(uri, token, port, sender.addr );
-
   const quote = await client.getFixedInputSwapQuote(fromASAId, toASAId, amount);
+  const algod = new algosdk.Algodv2(token, uri, port);
   const params = await algod.getTransactionParams().do();
 
 	const requiredAppOptIns = quote.requiredAppOptIns
@@ -349,7 +348,6 @@ class AutobookieCore {
    * @param {number} limitDate
    * @param {number} endDate
    * @param {number} fixedFee
-   * @return {AutobookieDapp}
    */
   async createDapp(creatorMnemonic, escrowMnemonic, team1, team2, limitDate, endDate, fixedFee) {
     console.log(`\nCreating DApp... ${limitDate} ~ ${endDate}`);
@@ -669,6 +667,7 @@ module.exports = {
   inputString,
   stringToTimestamp,
   exchange,
+  ALGO_ASSET_ID,
   USDC_ASSET_ID_TESTNET,
   USDC_ASSET_ID_MAINNET,
 }
