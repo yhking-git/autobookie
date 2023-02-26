@@ -60,7 +60,7 @@ async function test([arg0, ]) {
     // ALGO -> USDC
     await api.exchange('testnet', ESCROW_MNEMONIC, api.ALGO_ASSET_ID, api.USDC_ASSET_ID_TESTNET, 1000000, core.token, core.clientUri, core.port);
     // USDC -> ALGO
-    await api.exchange('testnet', ESCROW_MNEMONIC, api.USDC_ASSET_ID_TESTNET, api.ALGO_ASSET_ID, 10000000, core.token, core.clientUri, core.port);
+    await api.exchange('testnet', ESCROW_MNEMONIC, api.USDC_ASSET_ID_TESTNET, api.ALGO_ASSET_ID, 1000000, core.token, core.clientUri, core.port);
   } else {
 
     console.log('\nPrint assets info of admin and escrow\n');
