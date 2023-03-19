@@ -209,7 +209,7 @@ class AutobookieCore {
   /**
    * @param {number} appId
    */
-  async getAppInfoGlobal(appId)  {
+  async getAppInfoGlobal(appId) {
     const rawInfo = await this.indexer?.lookupApplications(appId).do();
 
     let info =  {};
@@ -349,6 +349,40 @@ class AutobookieCore {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const txn = await this.#makeUsdcTransferTxn(account.addr, account.addr, 0);
     await this.#sendSingleTxn(account.sk, txn);
+  }
+
+  /**
+   * @param {string} fromMnemonic
+   * @param {string} toMnemonic
+   * @param {number} amount
+   */
+  async transferAlgo(fromMnemonic, toMnemonic, amount) {
+    try {
+      const fromAccount = algosdk.mnemonicToSecretKey(fromMnemonic);
+      const toAccount = algosdk.mnemonicToSecretKey(toMnemonic);
+      const txn = await this.#makeAlgoTransferTxn(fromAccount.addr, toAccount.addr, amount);
+      await this.#sendSingleTxn(fromAccount.sk, txn);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * @param {string} fromMnemonic
+   * @param {string} toMnemonic
+   * @param {number} amount
+   */
+  async transferUsdc(fromMnemonic, toMnemonic, amount) {
+    try {
+      const fromAccount = algosdk.mnemonicToSecretKey(fromMnemonic);
+      const toAccount = algosdk.mnemonicToSecretKey(toMnemonic);
+      const txn = await this.#makeUsdcTransferTxn(fromAccount.addr, toAccount.addr, amount);
+      await this.#sendSingleTxn(fromAccount.sk, txn);
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -544,6 +578,23 @@ class AutobookieCore {
    * @param {boolean} closeAtFrom
    * @returns
    */
+  async #makeAlgoTransferTxn(from, to, amount) {
+    return algosdk.makePaymentTxnWithSuggestedParams(
+      from,
+      to,
+      amount,
+      undefined,
+      undefined,
+      await this.#getMinParams());
+  }
+
+  /**
+   * @param {string} from
+   * @param {string} to
+   * @param {number} amount
+   * @param {boolean} closeAtFrom
+   * @returns
+   */
   async #makeUsdcTransferTxn(from, to, amount, closeAtFrom=false) {
     return algosdk.makeAssetTransferTxnWithSuggestedParams(
       from,
@@ -553,7 +604,7 @@ class AutobookieCore {
       amount,
       undefined,
       this.usdcAssetId,
-      await this.#getMinParams())
+      await this.#getMinParams());
   }
 
   /**

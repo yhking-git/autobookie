@@ -54,13 +54,29 @@ async function test([arg0, ]) {
 
 
   if (arg0 && arg0.toLowerCase() === 'ex') {
-    const DEFLEX_MNEMONIC = 'bottom stone elegant just symbol bunker review curve laugh burden jewel pepper replace north tornado alert relief wrist better property spider picture insect abandon tuna';
-    const DEFLEX_ADDRESS = 'DWQXOZMGDA6QZRSPER6O4AMTO3BQ6CEJMFO25EWRRBK72RJO54GLDCGK4E'
 
     // ALGO -> USDC
     await api.exchange('testnet', ESCROW_MNEMONIC, api.ALGO_ASSET_ID, api.USDC_ASSET_ID_TESTNET, 1000000, core.token, core.clientUri, core.port);
     // USDC -> ALGO
     await api.exchange('testnet', ESCROW_MNEMONIC, api.USDC_ASSET_ID_TESTNET, api.ALGO_ASSET_ID, 1000000, core.token, core.clientUri, core.port);
+  } else if (arg0 && arg0.toLowerCase() === 'tr') {
+
+    console.log('user1 assets = ', await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId));
+    console.log('user2 assets = ', await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId));
+  
+
+    await core.transferAlgo(USER1_MNEMONIC, USER2_MNEMONIC, 1000000);
+
+
+    console.log('user1 assets = ', await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId));
+    console.log('user2 assets = ', await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId));
+
+
+    await core.transferUsdc(USER1_MNEMONIC, USER2_MNEMONIC, 1000000);
+
+
+    console.log('user1 assets = ', await core.getAccountAssetInfo(USER1_ADDRESS, core.usdcAssetId));
+    console.log('user2 assets = ', await core.getAccountAssetInfo(USER2_ADDRESS, core.usdcAssetId));
   } else {
 
     console.log('\nPrint assets info of admin and escrow\n');

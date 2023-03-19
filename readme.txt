@@ -20,6 +20,8 @@
 	npm start cancel
 5.3 test exchanging
 	npm start ex
+5.3 test transfer
+	npm start tr
 
 6. to test frontend
 	npm start
