@@ -469,7 +469,7 @@ class AutobookieCore {
    * @param {boolean} closeOut
    */
   async deleteDappById(mnemonic, appId) {
-    console.log('\nWARNING! This will permenantly delete the application, and any assets left in the escrow address will be unrecoverable!');
+    console.log(`\nDeleting app id: ${appId}`);
     const account = algosdk.mnemonicToSecretKey(mnemonic);
     const params = await this.#getMinParams();
     const txn = algosdk.makeApplicationDeleteTxn(account.addr, params, appId);
@@ -526,7 +526,7 @@ class AutobookieCore {
     const txn0 = await this.#makeUsdcTransferTxn(dapp.escrow.addr, account.addr, amount);
     const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray('claim')]);
     await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
-    console.log('Claim complete!');
+    console.log('Claiming complete!');
   }
 
   /**
@@ -545,6 +545,25 @@ class AutobookieCore {
       const txn1 = algosdk.makeApplicationNoOpTxn(account.addr, params, dapp.appId, [stringToByteArray(dueToCancel ? 'cancel': 'reclaim')]);
       await this.#sendDoubleTxns(dapp.escrow.sk, txn0, account.sk, txn1);
       console.log('Reclaiming complete!');
+      return true;
+    } catch (error) {
+      console.warn('error = ', error);
+      return false;
+    }
+  }
+
+  /**
+   * @param {string} mnemonic
+   * @param {number} appId
+  */
+  async clearAccountFromApp(mnemonic, appId) {
+    try {
+      const account = algosdk.mnemonicToSecretKey(mnemonic);
+      console.log(`\nClearing balance record of account:${account.addr} from app id: ${appId}`);
+      const params = await this.#getMinParams();
+      const txn = algosdk.makeApplicationClearStateTxn(account.addr, params, appId);
+      await this.#sendSingleTxn(account.sk, txn);
+      console.log('Clearing complete!');
       return true;
     } catch (error) {
       console.warn('error = ', error);

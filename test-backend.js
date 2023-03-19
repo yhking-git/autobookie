@@ -144,7 +144,12 @@ async function test([arg0, ]) {
     }
 
     // 7. admin deletes dapp
-    await core.deleteDappById(ADMIN_MNEMONIC, dapp.appId);  
+    await core.deleteDappById(ADMIN_MNEMONIC, dapp.appId);
+
+
+    // 8. clear all states related to dapp
+    await core.clearAccountFromApp(USER1_MNEMONIC, dapp.appId);
+    await core.clearAccountFromApp(USER2_MNEMONIC, dapp.appId);
   }
 
 

@@ -1,7 +1,7 @@
 #pragma version 4
 
 
-// ver 1.2
+// ver 1.3.2
 // GLOBAL STATE
 // LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
 // EndDate    # integer: the date after which funds can be reclaimed if the admin did not set a winning team

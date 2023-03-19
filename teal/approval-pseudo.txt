@@ -6,6 +6,10 @@
 #         2022.04.11 v1.0          #
 #         2022.05.11 v1.1          #
 #         2022.06.22 v1.2.0        #
+#         2022.06.22 v1.2.0        #
+#         2023.01.24 v1.3.0        #
+#         2023.02.26 v1.3.1        #
+#         2023.03.19 v1.3.2        #
 ####################################
 
 global.LimitDate  # integer: the date after which no more bets can be placed, and the winning team can be set by the admin
@@ -18,7 +22,6 @@ global.Team2      # string:  the name of the 2nd team in the match(eg "golden St
 global.Escrow     # string:  the address of the escrow account that holds the funds(actually the site account)
 global.Winner     # string:  the winning team
 
-# ver 1.2
 local.MyBettingCount	# the number of bettings
 local.MyTeam0			# name of team I bet
 local.MyBet0			# amount of my betting on team
